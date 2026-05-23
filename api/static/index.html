@@ -41,13 +41,14 @@
     flex-wrap: wrap;
   }
   .active-bar .grow { flex: 1; }
-  .link-btn {
+  .cancel-btn {
     background: none; border: 1px solid currentColor;
     color: var(--yellow); cursor: pointer;
-    padding: 3px 10px; border-radius: 4px;
-    font: inherit; font-size: 12px;
+    padding: 3px 12px; border-radius: 4px;
+    font: inherit; font-size: 12px; font-weight: 500;
   }
-  .link-btn:hover { background: rgba(210,153,34,0.12); }
+  .cancel-btn:hover { background: rgba(210,153,34,0.12); }
+  .cancel-btn:disabled { opacity: 0.5; cursor: wait; }
 
   .tabs {
     display: flex; gap: 4px;
@@ -70,7 +71,12 @@
     padding: 20px;
     margin-bottom: 16px;
   }
-  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--text); }
+  .panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+  }
+  .panel-head h2 { font-size: 14px; font-weight: 600; }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
 
   form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
   label {
@@ -93,7 +99,10 @@
   button.primary:hover { opacity: 0.92; }
   button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .status-line { margin-top: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .status-line {
+    margin-top: 16px;
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
   .badge {
     display: inline-block; padding: 2px 10px; border-radius: 999px;
     font-size: 11px; font-weight: 600; text-transform: lowercase;
@@ -101,7 +110,7 @@
   .badge.queued, .badge.deferred { background: rgba(139,148,158,.18); color: var(--muted); }
   .badge.started { background: rgba(210,153,34,.18); color: var(--yellow); }
   .badge.finished { background: rgba(63,185,80,.18); color: var(--green); }
-  .badge.failed { background: rgba(248,81,73,.18); color: var(--red); }
+  .badge.failed, .badge.canceled, .badge.stopped { background: rgba(248,81,73,.18); color: var(--red); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -127,10 +136,7 @@
   .chart-title { fill: var(--text); font-size: 13px; font-weight: 600; }
   .chart-legend { fill: var(--muted); font-size: 11px; }
 
-  .footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
-  .footer a { color: var(--accent); text-decoration: none; }
-  .footer a:hover { text-decoration: underline; }
-
+  /* Spinner — kept as a persistent DOM node, animation never restarts */
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     display: inline-block;
@@ -139,9 +145,62 @@
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-    vertical-align: -2px;
-    margin-right: 8px;
+    flex-shrink: 0;
   }
+  .spinner[hidden] { display: none; }
+
+  /* Friendly error card */
+  .error-card {
+    background: rgba(248,81,73,0.06);
+    border: 1px solid rgba(248,81,73,0.35);
+    color: var(--red);
+    padding: 12px 14px;
+    border-radius: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .error-card .icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(248,81,73,0.18);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px; flex-shrink: 0;
+  }
+  .error-card .title { font-weight: 600; margin-bottom: 2px; }
+  .error-card .hint { color: var(--muted); font-size: 12px; }
+
+  /* History row interaction */
+  #history tbody tr.history-row { cursor: pointer; }
+  #history tbody tr.history-row:hover td { background: rgba(255,255,255,0.02); }
+  #history tbody tr.history-row.expanded td { background: rgba(88,166,255,0.05); }
+  .history-detail td { padding: 14px 16px; background: rgba(0,0,0,0.18) !important; }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 24px;
+  }
+  .detail-grid .k {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 2px;
+  }
+  .detail-grid .v {
+    font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 12px;
+  }
+  .detail-grid .v.note { color: var(--green); font-family: inherit; font-size: 11px; }
+
+  .icon-btn {
+    background: none; border: 1px solid transparent; color: var(--muted);
+    cursor: pointer; padding: 4px 10px; border-radius: 4px;
+    font: inherit; font-size: 12px;
+  }
+  .icon-btn:hover { color: var(--red); border-color: rgba(248,81,73,0.35); background: rgba(248,81,73,0.06); }
+  .icon-btn.subtle { padding: 2px 6px; font-size: 11px; }
+
+  .footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -196,12 +255,15 @@
   </div>
 
   <div class="panel">
-    <h2>Recent jobs (last 10)</h2>
+    <div class="panel-head">
+      <h2>Recent jobs (last 10)</h2>
+      <button class="icon-btn" id="clear-history">Clear all</button>
+    </div>
     <table id="history">
       <thead>
-        <tr><th>Job</th><th>n</th><th>Threads</th><th>Elapsed</th><th>Status</th><th>When</th></tr>
+        <tr><th>Job</th><th>n</th><th>Threads</th><th>Elapsed</th><th>Status</th><th>When</th><th></th></tr>
       </thead>
-      <tbody><tr><td colspan="6" class="muted mono">no jobs yet</td></tr></tbody>
+      <tbody><tr><td colspan="7" class="muted mono">no jobs yet</td></tr></tbody>
     </table>
   </div>
 
@@ -214,47 +276,163 @@
 <script>
 const HISTORY_KEY = "qropenmp-history-v1";
 const ACTIVE_KEY  = "qropenmp-active-v1";
+const BANNER_DELAY_MS = 5000;
+const AMDAHL_P = 0.82;
 
-// --- history (localStorage of the last 10 jobs) ---
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
-  catch { return []; }
+// --- tiny helpers ---
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
-function pushHistory(item) {
-  const items = loadHistory();
-  items.unshift({...item, ts: Date.now()});
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 10)));
-  renderHistory();
-}
+function $(sel) { return document.querySelector(sel); }
 function timeAgo(ts) {
   const s = Math.round((Date.now() - ts) / 1000);
   if (s < 60) return s + "s ago";
   if (s < 3600) return Math.round(s/60) + "m ago";
   return Math.round(s/3600) + "h ago";
 }
+
+// --- status box: keeps the spinner DOM node alive between polls so its
+// rotation animation isn't restarted every 400ms. ---
+function statusEnsure(box) {
+  if (!box.querySelector(".status-line")) {
+    box.innerHTML = '<div class="status-line mono"><span class="spinner" hidden></span><span class="status-text"></span></div>';
+  }
+  return {
+    spinner: box.querySelector(".spinner"),
+    text: box.querySelector(".status-text"),
+  };
+}
+function statusSet(box, html, withSpinner = false) {
+  const { spinner, text } = statusEnsure(box);
+  spinner.hidden = !withSpinner;
+  text.innerHTML = html;
+}
+function statusClear(box) { box.innerHTML = ""; }
+
+function showError(box, title, hint) {
+  box.innerHTML = `
+    <div class="error-card">
+      <div class="icon">!</div>
+      <div>
+        <div class="title">${escapeHtml(title)}</div>
+        ${hint ? `<div class="hint">${escapeHtml(hint)}</div>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+// --- history (localStorage of the last 10 jobs) ---
+let expandedJobId = null;
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveHistory(items) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 10)));
+}
+function pushHistory(item) {
+  const items = loadHistory();
+  items.unshift({ ...item, ts: Date.now() });
+  saveHistory(items);
+  renderHistory();
+}
+function deleteHistory(jobId) {
+  if (expandedJobId === jobId) expandedJobId = null;
+  saveHistory(loadHistory().filter(j => j.job_id !== jobId));
+  renderHistory();
+}
+function clearHistory() {
+  expandedJobId = null;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
 function renderHistory() {
   const items = loadHistory();
-  const tbody = document.querySelector("#history tbody");
+  const tbody = $("#history tbody");
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted mono">no jobs yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="muted mono">no jobs yet</td></tr>';
     return;
   }
-  tbody.innerHTML = items.map(j => `
-    <tr>
+  tbody.innerHTML = items.map(j => renderRow(j, items)).join("");
+  tbody.querySelectorAll(".history-row").forEach(row => {
+    row.onclick = (e) => {
+      if (e.target.closest(".delete-row")) return;
+      const id = row.dataset.job;
+      expandedJobId = expandedJobId === id ? null : id;
+      renderHistory();
+    };
+  });
+  tbody.querySelectorAll(".delete-row").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      deleteHistory(btn.dataset.job);
+    };
+  });
+}
+
+function renderRow(j, allItems) {
+  const expanded = expandedJobId === j.job_id;
+  const elapsed = j.elapsed_ms != null ? j.elapsed_ms.toFixed(2) + " ms" : "—";
+  const main = `
+    <tr class="history-row ${expanded ? "expanded" : ""}" data-job="${j.job_id}">
       <td class="mono">${j.job_id.slice(0, 8)}</td>
       <td>${j.n}</td>
       <td>${j.threads}</td>
-      <td>${j.elapsed_ms != null ? j.elapsed_ms.toFixed(2) + " ms" : "—"}</td>
+      <td>${elapsed}</td>
       <td><span class="badge ${j.status}">${j.status}</span></td>
       <td class="muted mono">${timeAgo(j.ts)}</td>
+      <td><button class="icon-btn subtle delete-row" data-job="${j.job_id}" title="Delete">×</button></td>
     </tr>
-  `).join("");
+  `;
+  if (!expanded) return main;
+  return main + renderDetail(j, allItems);
 }
 
-// --- active job tracking (survives refresh, locks submit buttons) ---
-// For fresh submissions the banner is held back for BANNER_DELAY_MS so short
-// jobs don't flash it. The submit lock is applied immediately regardless.
-const BANNER_DELAY_MS = 5000;
+function renderDetail(j, allItems) {
+  // Try to find a same-n single-thread run in the history to compute speedup.
+  const baseline = allItems.find(x => x.n === j.n && x.threads === 1 && x.elapsed_ms != null && x.status === "finished");
+  let speedupRow = "", effRow = "", noteRow = "";
+  if (j.status === "finished" && baseline && j.threads > 1) {
+    const speedup = baseline.elapsed_ms / j.elapsed_ms;
+    const eff = (speedup / j.threads) * 100;
+    speedupRow = `<div><div class="k">speedup vs 1 thread</div><div class="v">${speedup.toFixed(2)}×</div></div>`;
+    effRow    = `<div><div class="k">efficiency</div><div class="v">${eff.toFixed(1)}%</div></div>`;
+    if (eff > 100) {
+      noteRow = `<div><div class="k">note</div><div class="v note">superlinear — likely cache effect</div></div>`;
+    } else if (eff < 50) {
+      noteRow = `<div><div class="k">note</div><div class="v" style="color:var(--muted)">low efficiency — overhead dominates</div></div>`;
+    }
+  } else if (j.status === "finished" && j.threads > 1 && !baseline) {
+    noteRow = `<div><div class="k">note</div><div class="v" style="color:var(--muted)">run with threads=1 at n=${j.n} to compute speedup</div></div>`;
+  }
+  const amdahl = 1 / ((1 - AMDAHL_P) + AMDAHL_P / j.threads);
+  const mib = (j.n * j.n * 8 / 1024 / 1024);
+  return `
+    <tr class="history-detail">
+      <td colspan="7">
+        <div class="detail-grid">
+          <div><div class="k">job id</div><div class="v">${j.job_id}</div></div>
+          <div><div class="k">matrix</div><div class="v">${j.n} × ${j.n} (${mib.toFixed(2)} MiB)</div></div>
+          <div><div class="k">threads requested</div><div class="v">${j.threads}</div></div>
+          <div><div class="k">elapsed</div><div class="v">${j.elapsed_ms != null ? j.elapsed_ms.toFixed(2) + " ms" : "—"}</div></div>
+          ${speedupRow}
+          ${effRow}
+          <div><div class="k">amdahl bound (p=${AMDAHL_P})</div><div class="v">${amdahl.toFixed(2)}×</div></div>
+          <div><div class="k">submitted</div><div class="v">${new Date(j.ts).toLocaleString()}</div></div>
+          ${noteRow}
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+$("#clear-history").onclick = () => {
+  if (confirm("Clear all recent jobs?")) clearHistory();
+};
+
+// --- active job tracking (persists across refresh, locks submit) ---
 let bannerTimer = null;
 let bannerShown = false;
 
@@ -266,9 +444,9 @@ function setActive(job, opts = {}) {
   if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
   if (job) {
     localStorage.setItem(ACTIVE_KEY, JSON.stringify(job));
-    lockSubmitButtons(true);
+    lockSubmit(true);
     bannerShown = false;
-    document.getElementById("active-notice").innerHTML = "";
+    $("#active-notice").innerHTML = "";
     const delay = opts.delayBanner ?? BANNER_DELAY_MS;
     if (delay <= 0) {
       bannerShown = true;
@@ -282,74 +460,103 @@ function setActive(job, opts = {}) {
     }
   } else {
     localStorage.removeItem(ACTIVE_KEY);
-    lockSubmitButtons(false);
+    lockSubmit(false);
     bannerShown = false;
-    document.getElementById("active-notice").innerHTML = "";
+    $("#active-notice").innerHTML = "";
   }
 }
-function lockSubmitButtons(locked) {
+function lockSubmit(locked) {
   document.querySelectorAll("form button.primary").forEach(b => b.disabled = locked);
 }
 function renderActive(status) {
   const a = getActive();
-  const notice = document.getElementById("active-notice");
-  if (!a || !bannerShown) {
-    notice.innerHTML = "";
-    return;
-  }
+  const notice = $("#active-notice");
+  if (!a || !bannerShown) { notice.innerHTML = ""; return; }
   const badge = status ? `<span class="badge ${status.status}">${status.status}</span>` : "";
   notice.innerHTML = `
     <div class="active-bar">
       <span class="grow">A job is in flight: <span class="mono">${a.job_id.slice(0,8)}</span>
         (n=${a.n}, threads=${a.threads}) ${badge}.
         Submit is locked until it finishes.</span>
-      <button class="link-btn" id="forget-btn">forget</button>
+      <button class="cancel-btn" id="cancel-btn">Cancel</button>
     </div>
   `;
-  document.getElementById("forget-btn").onclick = () => setActive(null);
+  $("#cancel-btn").onclick = onCancelClick;
 }
 
-// --- tab switching ---
-document.querySelectorAll(".tab").forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
-    document.getElementById("tab-single").hidden = t.dataset.tab !== "single";
-    document.getElementById("tab-bench").hidden = t.dataset.tab !== "bench";
-  };
-});
+async function onCancelClick() {
+  const a = getActive();
+  if (!a) return;
+  const btn = $("#cancel-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "canceling..."; }
+  try {
+    await cancelJob(a.job_id);
+  } catch {
+    // best effort — the polling loop will catch the missing job
+  }
+  // The 404 from the next poll will throw and bubble up; we already cleared
+  // active here so the UI is consistent immediately.
+  setActive(null);
+}
 
-// --- HTTP helpers ---
+// --- HTTP ---
 async function submitRandom(n, threads, seed) {
   const r = await fetch("/jobs/random", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({n: Number(n), threads: Number(threads), seed: Number(seed)})
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ n: Number(n), threads: Number(threads), seed: Number(seed) }),
   });
-  if (!r.ok) {
-    let detail;
-    try { detail = (await r.json()).detail; } catch { detail = await r.text(); }
-    throw new Error(`HTTP ${r.status}: ${detail}`);
-  }
+  if (!r.ok) throw await wrapHttpError(r);
   return r.json();
 }
 async function fetchStatus(jobId) {
   const r = await fetch(`/jobs/${jobId}`);
-  if (r.status === 404) throw new Error(`job ${jobId.slice(0,8)} not found (TTL expired)`);
-  if (!r.ok) throw new Error(`status fetch failed (${r.status})`);
+  if (!r.ok) throw await wrapHttpError(r, { jobId });
   return r.json();
 }
+async function cancelJob(jobId) {
+  const r = await fetch(`/jobs/${jobId}`, { method: "DELETE" });
+  if (!r.ok && r.status !== 404) throw await wrapHttpError(r);
+}
+
+async function wrapHttpError(response, extra = {}) {
+  let detail = response.statusText;
+  try {
+    const j = await response.json();
+    if (j.detail) detail = j.detail;
+  } catch { /* not json */ }
+  const err = new Error(detail);
+  err.status = response.status;
+  err.extra = extra;
+  return err;
+}
+
+// Friendly error messages
+function describeError(err) {
+  if (err.status === 429) {
+    return { title: "Server is busy", hint: "Too many jobs are running. Wait for one to finish, or hit Cancel on the active job." };
+  }
+  if (err.status === 404 && err.extra && err.extra.jobId) {
+    return { title: "Job was canceled or expired", hint: "The worker already cleaned it up; nothing left to wait for." };
+  }
+  if (err.status >= 500) {
+    return { title: "Server error", hint: "Check the logs: docker compose logs api worker" };
+  }
+  if (err.name === "TypeError" && /Failed to fetch|NetworkError/i.test(err.message)) {
+    return { title: "Cannot reach the server", hint: "Is docker compose up?" };
+  }
+  return { title: err.message || "Unexpected error", hint: null };
+}
+
 async function waitForJob(jobId, onUpdate) {
   while (true) {
     const s = await fetchStatus(jobId);
     onUpdate(s);
-    if (s.status === "finished" || s.status === "failed") return s;
+    if (["finished", "failed", "canceled", "stopped"].includes(s.status)) return s;
     await new Promise(res => setTimeout(res, 400));
   }
 }
 
-// trackJob: wraps waitForJob with active-job persistence so a page refresh
-// can resume the same job instead of accepting a duplicate submission.
-// opts.delayBanner overrides BANNER_DELAY_MS (use 0 to show immediately on resume).
 async function trackJob(jobId, n, threads, onUpdate, opts = {}) {
   setActive({ job_id: jobId, n, threads }, opts);
   try {
@@ -362,12 +569,7 @@ async function trackJob(jobId, n, threads, onUpdate, opts = {}) {
   }
 }
 
-function statusLine(content, withSpinner = false) {
-  const sp = withSpinner ? '<span class="spinner"></span>' : "";
-  return `<div class="status-line mono">${sp}${content}</div>`;
-}
-
-// --- result renderers ---
+// --- result rendering ---
 function renderSingleResult(r) {
   return `
     <div class="result-block">
@@ -378,39 +580,48 @@ function renderSingleResult(r) {
   `;
 }
 
+// --- tabs ---
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
+    $("#tab-single").hidden = t.dataset.tab !== "single";
+    $("#tab-bench").hidden  = t.dataset.tab !== "bench";
+  };
+});
+
 // --- single submit ---
-document.getElementById("single-form").onsubmit = async (e) => {
+$("#single-form").onsubmit = async (e) => {
   e.preventDefault();
   if (getActive()) return;
   const fd = new FormData(e.target);
   const n = Number(fd.get("n")), threads = Number(fd.get("threads")), seed = Number(fd.get("seed"));
-  const statusBox = document.getElementById("single-status");
-  const resultBox = document.getElementById("single-result");
+  const statusBox = $("#single-status");
+  const resultBox = $("#single-result");
   resultBox.innerHTML = "";
-  statusBox.innerHTML = statusLine('<span class="muted">submitting...</span>', true);
+  statusSet(statusBox, '<span class="muted">submitting…</span>', true);
   try {
     const { job_id } = await submitRandom(n, threads, seed);
     const final = await trackJob(job_id, n, threads, (s) => {
       const running = s.status === "queued" || s.status === "started";
-      statusBox.innerHTML = statusLine(
-        `job ${job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span>`,
-        running,
-      );
+      statusSet(statusBox, `job ${job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span>`, running);
     });
-    if (final.status === "failed") {
-      resultBox.innerHTML = `<pre class="mono result-block" style="color:var(--red)">${final.error || "failed"}</pre>`;
-      pushHistory({ job_id, n, threads, status: "failed" });
-    } else {
+    if (final.status === "finished") {
       resultBox.innerHTML = renderSingleResult(final.result);
       pushHistory({ job_id, n, threads, status: "finished", elapsed_ms: final.result.elapsed_ms });
+    } else {
+      statusClear(statusBox);
+      showError(resultBox, `Job ${final.status}`, final.error || null);
+      pushHistory({ job_id, n, threads, status: final.status });
     }
   } catch (err) {
-    statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">${err.message}</div>`;
+    statusClear(statusBox);
+    const { title, hint } = describeError(err);
+    showError(resultBox, title, hint);
   }
 };
 
 // --- benchmark submit ---
-document.getElementById("bench-form").onsubmit = async (e) => {
+$("#bench-form").onsubmit = async (e) => {
   e.preventDefault();
   if (getActive()) return;
   const fd = new FormData(e.target);
@@ -418,31 +629,31 @@ document.getElementById("bench-form").onsubmit = async (e) => {
   const threadList = String(fd.get("threads")).split(",")
     .map(s => Number(s.trim()))
     .filter(t => Number.isFinite(t) && t > 0);
-  const statusBox = document.getElementById("bench-status");
-  const resultBox = document.getElementById("bench-result");
+  const statusBox = $("#bench-status");
+  const resultBox = $("#bench-result");
   resultBox.innerHTML = "";
   if (threadList.length < 2) {
-    statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">need at least 2 thread counts</div>`;
+    showError(statusBox, "Need at least 2 thread counts", "e.g. 1,2,4,8");
     return;
   }
+  statusClear(statusBox);
 
   const records = [];
   try {
     for (const t of threadList) {
-      statusBox.innerHTML = statusLine(
-        `<span class="muted">running n=${n}, threads=${t} (${records.length+1}/${threadList.length})</span>`,
-        true,
-      );
+      statusSet(statusBox, `<span class="muted">running n=${n}, threads=${t} (${records.length + 1}/${threadList.length})</span>`, true);
       const { job_id } = await submitRandom(n, t, 42);
       const final = await trackJob(job_id, n, t);
-      if (final.status === "failed") throw new Error(`job for threads=${t} failed`);
+      if (final.status !== "finished") throw new Error(`job for threads=${t} ${final.status}`);
       records.push({ threads: t, elapsed_ms: final.result.elapsed_ms });
       pushHistory({ job_id, n, threads: t, status: "finished", elapsed_ms: final.result.elapsed_ms });
     }
-    statusBox.innerHTML = `<div class="status-line mono muted">done — ${records.length} runs</div>`;
+    statusSet(statusBox, `<span class="muted">done — ${records.length} runs</span>`, false);
     renderBenchmark(n, records);
   } catch (err) {
-    statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">${err.message}</div>`;
+    statusClear(statusBox);
+    const { title, hint } = describeError(err);
+    showError(resultBox, title, hint);
   }
 };
 
@@ -467,16 +678,14 @@ function renderBenchmark(n, records) {
       </tbody>
     </table>
   `;
-  document.getElementById("bench-result").innerHTML =
-    tableHtml + `<div class="chart-wrap">${buildChart(n, enriched)}</div>`;
+  $("#bench-result").innerHTML = tableHtml + `<div class="chart-wrap">${buildChart(n, enriched)}</div>`;
 }
 
 function buildChart(n, records) {
   const W = 720, H = 300, padL = 50, padR = 20, padT = 36, padB = 36;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-  const p = 0.82;
-  const amdahl = t => 1 / ((1 - p) + p / t);
+  const amdahl = t => 1 / ((1 - AMDAHL_P) + AMDAHL_P / t);
 
   const yMax = Math.max(
     ...records.map(r => r.speedup),
@@ -514,7 +723,7 @@ function buildChart(n, records) {
   return `
     <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
       <text class="chart-title" x="${padL}" y="22">Speedup vs threads &mdash; n=${n}</text>
-      <text class="chart-legend" x="${W - padR}" y="22" text-anchor="end">dashed: Amdahl, p=${p}</text>
+      <text class="chart-legend" x="${W - padR}" y="22" text-anchor="end">dashed: Amdahl, p=${AMDAHL_P}</text>
       ${yTicks.join("")}
       ${bars}
       <polyline points="${amdahlPts}" fill="none" stroke="rgba(201,209,217,0.5)" stroke-width="1.5" stroke-dasharray="5 4"/>
@@ -526,34 +735,32 @@ function buildChart(n, records) {
   `;
 }
 
-// --- on page load: render history, resume any in-flight job ---
+// --- on load: render history, optionally resume an in-flight job ---
 renderHistory();
 setInterval(renderHistory, 15000);
 
 (async function resumeOnLoad() {
   const a = getActive();
   if (!a) return;
-  const statusBox = document.getElementById("single-status");
-  const resultBox = document.getElementById("single-result");
-  statusBox.innerHTML = statusLine(`resuming job ${a.job_id.slice(0,8)}...`, true);
+  const statusBox = $("#single-status");
+  const resultBox = $("#single-result");
+  statusSet(statusBox, `resuming job ${a.job_id.slice(0,8)}…`, true);
   try {
-    // delayBanner: 0 — when we're already resuming, the user clearly cares
-    // about the in-flight state, so show the banner immediately.
     const final = await trackJob(a.job_id, a.n, a.threads, (s) => {
       const running = s.status === "queued" || s.status === "started";
-      statusBox.innerHTML = statusLine(
-        `job ${a.job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span>`,
-        running,
-      );
+      statusSet(statusBox, `job ${a.job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span>`, running);
     }, { delayBanner: 0 });
     if (final.status === "finished") {
       resultBox.innerHTML = renderSingleResult(final.result);
       pushHistory({ job_id: a.job_id, n: a.n, threads: a.threads, status: "finished", elapsed_ms: final.result.elapsed_ms });
     } else {
-      resultBox.innerHTML = `<pre class="mono result-block" style="color:var(--red)">${final.error || "failed"}</pre>`;
+      statusClear(statusBox);
+      showError(resultBox, `Job ${final.status}`, final.error || null);
     }
   } catch (err) {
-    statusBox.innerHTML = statusLine(`<span class="muted">${err.message} — cleared tracking</span>`);
+    statusClear(statusBox);
+    const { title, hint } = describeError(err);
+    showError(resultBox, title, hint);
     setActive(null);
   }
 })();

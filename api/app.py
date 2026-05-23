@@ -13,13 +13,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from redis import Redis
 from rq import Queue
-from rq.exceptions import NoSuchJobError
+from rq.command import send_stop_job_command
+from rq.exceptions import InvalidJobOperation, NoSuchJobError
 from rq.job import Job
 from rq.registry import StartedJobRegistry
 
@@ -130,6 +131,36 @@ def submit_random_job(req: RandomJobRequest) -> JobSubmitted:
         result_ttl=3600,
     )
     return JobSubmitted(job_id=job.id, status=job.get_status())
+
+
+@app.delete("/jobs/{job_id}", status_code=204, response_class=Response)
+def cancel_job(job_id: str):
+    """Cancel a job and remove it from Redis so its slot in the cap is freed.
+
+    Queued jobs are simply pulled off the queue. Running jobs are asked to
+    stop via the worker control channel; the engine subprocess will be killed
+    by the worker. Either way the job is then deleted so /health stops
+    counting it as in-flight.
+    """
+    try:
+        job = Job.fetch(job_id, connection=redis_conn)
+    except NoSuchJobError:
+        return  # already gone — idempotent
+
+    if job.get_status() == "started":
+        try:
+            send_stop_job_command(redis_conn, job_id)
+        except (InvalidJobOperation, Exception):
+            pass  # best effort; we still delete below
+
+    try:
+        job.cancel()
+    except InvalidJobOperation:
+        pass
+    try:
+        job.delete()
+    except Exception:
+        pass
 
 
 @app.get("/jobs/{job_id}", response_model=JobStatus)

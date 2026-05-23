@@ -9,6 +9,7 @@ name; for local development the ENGINE_BIN env var can point elsewhere.
 from __future__ import annotations
 
 import os
+import signal
 import struct
 import subprocess
 
@@ -28,18 +29,38 @@ def decompose(matrix_bytes: bytes, n: int, threads: int) -> dict:
 
     payload = struct.pack("<ii", n, threads) + matrix_bytes
 
-    proc = subprocess.run(
+    # Run the engine in its own process group so that when RQ kills the
+    # work horse (e.g. on a cancel) we can take the C++ process down with
+    # it instead of leaving it as an orphan eating a CPU.
+    proc = subprocess.Popen(
         [ENGINE_BIN],
-        input=payload,
-        capture_output=True,
-        check=False,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
     )
+
+    def kill_engine(signum, _frame):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        raise SystemExit(128 + signum)
+
+    prev_term = signal.signal(signal.SIGTERM, kill_engine)
+    prev_int = signal.signal(signal.SIGINT, kill_engine)
+    try:
+        stdout, stderr = proc.communicate(input=payload)
+    finally:
+        signal.signal(signal.SIGTERM, prev_term)
+        signal.signal(signal.SIGINT, prev_int)
+
     if proc.returncode != 0:
         raise RuntimeError(
-            f"qr-engine exited with {proc.returncode}: {proc.stderr.decode(errors='replace')}"
+            f"qr-engine exited with {proc.returncode}: {stderr.decode(errors='replace')}"
         )
 
-    out = proc.stdout
+    out = stdout
     if len(out) < _HEADER_SIZE:
         raise RuntimeError(f"engine returned {len(out)} bytes, expected at least {_HEADER_SIZE}")
 
