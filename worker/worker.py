@@ -18,8 +18,9 @@ import numpy as np
 ENGINE_BIN = os.environ.get("ENGINE_BIN", "/usr/local/bin/qr-engine")
 
 # Header layout matches main.cpp:
-#   double elapsed_ms, int32 n, int32 threads_used → 16 bytes
-_HEADER_FMT = "<dii"
+#   double elapsed_ms, int32 n, int32 threads_requested,
+#   int32 omp_max, int32 omp_procs, int32 observed_team
+_HEADER_FMT = "<diiiii"
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 
 
@@ -64,7 +65,9 @@ def decompose(matrix_bytes: bytes, n: int, threads: int) -> dict:
     if len(out) < _HEADER_SIZE:
         raise RuntimeError(f"engine returned {len(out)} bytes, expected at least {_HEADER_SIZE}")
 
-    elapsed_ms, n_out, threads_used = struct.unpack(_HEADER_FMT, out[:_HEADER_SIZE])
+    elapsed_ms, n_out, threads_used, omp_max, omp_procs, observed_team = (
+        struct.unpack(_HEADER_FMT, out[:_HEADER_SIZE])
+    )
     diag_bytes = out[_HEADER_SIZE : _HEADER_SIZE + n_out * 8]
     diag_r = list(struct.unpack(f"<{n_out}d", diag_bytes))
 
@@ -72,6 +75,9 @@ def decompose(matrix_bytes: bytes, n: int, threads: int) -> dict:
         "n": n_out,
         "threads_used": threads_used,
         "elapsed_ms": elapsed_ms,
+        "omp_max_threads": omp_max,
+        "omp_num_procs": omp_procs,
+        "observed_team_size": observed_team,
         "diag_r_head": diag_r[:8],
         "diag_r_tail": diag_r[-8:],
         "diag_r_count": len(diag_r),

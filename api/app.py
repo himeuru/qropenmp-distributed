@@ -22,7 +22,7 @@ from rq import Queue
 from rq.command import send_stop_job_command
 from rq.exceptions import InvalidJobOperation, NoSuchJobError
 from rq.job import Job
-from rq.registry import StartedJobRegistry
+from rq.registry import FinishedJobRegistry, StartedJobRegistry
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 QUEUE_NAME = "qr"
@@ -33,6 +33,7 @@ MAX_PENDING = int(os.environ.get("MAX_PENDING_JOBS", "4"))
 redis_conn = Redis.from_url(REDIS_URL)
 queue = Queue(QUEUE_NAME, connection=redis_conn)
 started_registry = StartedJobRegistry(QUEUE_NAME, connection=redis_conn)
+finished_registry = FinishedJobRegistry(QUEUE_NAME, connection=redis_conn)
 
 
 def _check_capacity() -> None:
@@ -102,6 +103,46 @@ def _summarise(job_id: str) -> dict | None:
         "enqueued_at": _isoformat(job.enqueued_at),
         "started_at": _isoformat(job.started_at),
     }
+
+
+@app.get("/info")
+def info() -> dict:
+    """Diagnostic snapshot: what CPU resources the API sees and what the most
+    recent finished job reported about the worker's OpenMP environment.
+    Useful when the speedup numbers look worse than expected — the
+    `observed_team_size` from the engine tells you whether OpenMP actually
+    spun up the threads you asked for."""
+    import sys as _sys
+
+    api_block = {
+        "cpu_count_logical": os.cpu_count(),
+        "available_cpus": (
+            len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count()
+        ),
+        "python": _sys.version.split()[0],
+        "max_pending_jobs": MAX_PENDING,
+        "redis_url": REDIS_URL,
+    }
+
+    worker_block: dict | None = None
+    try:
+        for jid in finished_registry.get_job_ids():
+            job = Job.fetch(jid, connection=redis_conn)
+            if job.result and isinstance(job.result, dict) and "observed_team_size" in job.result:
+                worker_block = {
+                    "last_job_id": jid,
+                    "n": job.result.get("n"),
+                    "threads_requested": job.result.get("threads_used"),
+                    "omp_max_threads": job.result.get("omp_max_threads"),
+                    "omp_num_procs": job.result.get("omp_num_procs"),
+                    "observed_team_size": job.result.get("observed_team_size"),
+                    "elapsed_ms": job.result.get("elapsed_ms"),
+                }
+                break
+    except Exception as exc:
+        worker_block = {"error": str(exc)}
+
+    return {"api": api_block, "worker_last_job": worker_block}
 
 
 @app.get("/queue")

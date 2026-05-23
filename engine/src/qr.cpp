@@ -16,6 +16,11 @@ void qr_decompose(const std::vector<double>& A,
                   int threads,
                   std::vector<double>& Q,
                   std::vector<double>& R) {
+    // Pin team size to whatever the caller asked for. With dynamic adjustment
+    // on (the default on some libgomp builds) the runtime is free to give us
+    // fewer threads than requested, which destroys the speedup numbers in a
+    // hard-to-debug way.
+    omp_set_dynamic(0);
     if (threads > 0) {
         omp_set_num_threads(threads);
     }
