@@ -23,4 +23,6 @@ COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY worker/ .
 
-CMD ["rq", "worker", "qr", "--url", "redis://redis:6379"]
+# shell form so ${REDIS_URL} expands at container start. Without this we'd
+# ignore whatever REDIS_URL is set to in the compose file.
+CMD rq worker qr --url ${REDIS_URL:-redis://redis:6379}

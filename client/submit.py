@@ -78,6 +78,13 @@ def main() -> int:
 
         try:
             status = http_get(f"{args.api}/jobs/{job_id}")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                print(f"Job {job_id} disappeared (canceled or TTL expired)", file=sys.stderr)
+                return 3
+            print(f"  poll error: {exc}", file=sys.stderr)
+            time.sleep(args.poll_interval)
+            continue
         except urllib.error.URLError as exc:
             print(f"  poll error: {exc}", file=sys.stderr)
             time.sleep(args.poll_interval)
@@ -96,8 +103,11 @@ def main() -> int:
             print(f"  diag(R)[:5]  = {[round(x, 4) for x in result['diag_r_head'][:5]]}")
             return 0
 
-        if status["status"] == "failed":
-            print(f"Job failed:\n{status.get('error') or '(no error info)'}", file=sys.stderr)
+        if status["status"] in ("failed", "canceled", "stopped"):
+            print(
+                f"Job ended as {status['status']}:\n{status.get('error') or '(no error info)'}",
+                file=sys.stderr,
+            )
             return 1
 
         time.sleep(args.poll_interval)

@@ -126,3 +126,21 @@ Engine builds standalone:
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build -j
 ```
+
+## Notes
+
+- **Docker Desktop / WSL2 performance.** Memory-bound kernels (QR is one) run
+  about 2–3× slower inside a Linux container on Windows than they would on
+  the host directly. The *relative* speedup numbers stay honest — both the
+  baseline and the parallel runs pay the same penalty — but absolute times
+  look bigger than they would natively.
+- **Diagnosing OpenMP weirdness.** If a thread count doesn't produce the
+  speedup you expect, open Reports → System info. The `observed_team_size`
+  field is what `omp_get_num_threads()` reports from inside the parallel
+  region; if it's lower than `threads_requested`, libgomp isn't giving you
+  the team you asked for and the speedup numbers will be off.
+- **Large matrices.** `n = 8192` with `threads = 1` is multi-minute work
+  even on a fast machine. Bump `JOB_TIMEOUT` in `docker-compose.yml` if
+  jobs hit the 30-minute death penalty, or just use higher thread counts.
+- **Logs.** `docker compose logs -f worker` is usually where the real
+  failure reason lives when a job ends as `failed`.
