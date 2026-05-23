@@ -344,8 +344,9 @@ const HISTORY_KEY = "qropenmp-history-v2";
 const ACTIVE_KEY  = "qropenmp-active-v1";
 const BANNER_DELAY_MS = 5000;
 const AMDAHL_P = 0.82;
-const SIZE_COLOURS = ["#1F3864", "#4472C4", "#70AD47", "#ED7D31", "#7030A0", "#C00000", "#bc8cff"];
-const SIZE_MARKERS = ["circle", "rect", "triangle", "diamond", "cross", "star", "plus"];
+// Distinct hues so adjacent sizes don't look like two blues.
+const SIZE_COLOURS = ["#58a6ff", "#f85149", "#3fb950", "#d29922", "#bc8cff", "#ed7d31", "#7ee787"];
+const SIZE_MARKERS = ["circle", "diamond", "triangle", "rect", "cross", "star", "plus"];
 
 // --- tiny helpers ---
 function escapeHtml(s) {
@@ -882,11 +883,14 @@ function chartAmdahl(data) {
     }
   });
 
-  // legend for sizes
-  const legend = data.map((d, idx) => {
+  // Only legend the sizes that actually have points on the chart.
+  const drawn = data
+    .map((d, idx) => ({ d, idx }))
+    .filter(({ d }) => d.runs.some(r => r.speedup != null));
+  const legend = drawn.map(({ d, idx }, i) => {
     const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
     const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
-    const y = padT + idx * 14 + 4;
+    const y = padT + i * 14 + 4;
     return svgMarker(shape, padL + 14, y, 5, colour) + `<text class="chart-legend" x="${padL+26}" y="${y+4}">${d.n}×${d.n}</text>`;
   }).join("");
 
@@ -943,18 +947,27 @@ function chartSpeedupBySize(data) {
     lines += valid.map(r => svgMarker(shape, xScale(r.threads), yScale(r.speedup), 4, colour)).join("");
   });
 
-  const legend = usable
+  // Size legend (markers + matrix label)
+  const sizeLegend = usable
     .map((d, idx) => {
       const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
       const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
       const y = padT + 12 + idx * 14;
       return svgMarker(shape, padL + 30, y - 4, 5, colour) + `<text class="chart-legend" x="${padL+42}" y="${y}">${d.n}×${d.n}</text>`;
     }).join("");
+  // Reference-line legend with actual line samples so dashed styles are
+  // matched to their meaning instead of lumped together.
+  const refY = padT + 12 + usable.length * 14 + 6;
+  const refLegend = `
+    <line x1="${padL+20}" x2="${padL+40}" y1="${refY-4}" y2="${refY-4}" stroke="rgba(112,173,71,0.7)" stroke-width="1.5" stroke-dasharray="2 3"/>
+    <text class="chart-legend" x="${padL+46}" y="${refY}">ideal S = N</text>
+    <line x1="${padL+20}" x2="${padL+40}" y1="${refY+12}" y2="${refY+12}" stroke="rgba(201,209,217,0.7)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text class="chart-legend" x="${padL+46}" y="${refY+16}">Amdahl p=${AMDAHL_P}</text>
+  `;
 
   return `<svg class="chart" viewBox="0 0 ${W} ${H}">
     <text class="chart-title" x="${padL}" y="20">Real speedup vs Amdahl (p=${AMDAHL_P})</text>
-    <text class="chart-legend" x="${W-padR}" y="20" text-anchor="end">dashed: ideal &amp; Amdahl</text>
-    ${grid}${lines}${legend}
+    ${grid}${lines}${sizeLegend}${refLegend}
   </svg>`;
 }
 
@@ -1009,11 +1022,13 @@ function chartEfficiencyHeatmap(data) {
     cells += `<text class="chart-label" x="${padL + ci * cellW + cellW/2}" y="${padT - 8}" text-anchor="middle">T=${t}</text>`;
   });
 
-  return `<svg class="chart-heatmap" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <text class="chart-title" x="${padL}" y="18">Efficiency E = S / N (%)</text>
-    <text class="chart-legend" x="${W-padR-10}" y="18" text-anchor="end">red = poor, green = great, &gt;100% = superlinear</text>
-    ${cells}
-  </svg>`;
+  return `
+    <svg class="chart-heatmap" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <text class="chart-title" x="${padL}" y="18">Efficiency E = S / N (%)</text>
+      ${cells}
+    </svg>
+    <p class="muted" style="font-size:11px; margin-top:8px">red → green = lower → higher efficiency · cells over 100% are superlinear (cache effect)</p>
+  `;
 }
 
 // Chart 4: time vs threads, one line per size, log y.
