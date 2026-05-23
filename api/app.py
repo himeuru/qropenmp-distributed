@@ -26,7 +26,7 @@ from rq.registry import FinishedJobRegistry, StartedJobRegistry
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 QUEUE_NAME = "qr"
-JOB_TIMEOUT = "10m"
+JOB_TIMEOUT = os.environ.get("JOB_TIMEOUT", "30m")
 MAX_N = 8192
 MAX_PENDING = int(os.environ.get("MAX_PENDING_JOBS", "4"))
 
@@ -248,8 +248,18 @@ def job_status(job_id: str) -> JobStatus:
         started_at=_isoformat(job.started_at),
         finished_at=_isoformat(job.ended_at),
         result=job.result if job.is_finished else None,
-        error=str(job.exc_info) if job.is_failed and job.exc_info else None,
+        error=_short_error(job.exc_info) if job.is_failed else None,
     )
+
+
+def _short_error(exc_info: str | None) -> str | None:
+    """Return the last meaningful line of a Python traceback so the UI can
+    show a one-liner like 'JobTimeoutException: Task exceeded …' instead of
+    twenty lines of stack frames."""
+    if not exc_info:
+        return None
+    lines = [ln.strip() for ln in exc_info.strip().split("\n") if ln.strip()]
+    return lines[-1] if lines else exc_info
 
 
 def _isoformat(value) -> str | None:

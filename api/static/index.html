@@ -660,7 +660,7 @@ $("#single-form").onsubmit = async (e) => {
       pushHistory({ job_id, n, threads, status: "finished", elapsed_ms: final.result.elapsed_ms });
     } else {
       statusClear(statusBox);
-      showError(resultBox, `Job ${final.status}`, final.error || null);
+      showError(resultBox, `Job ${final.status}`, final.error || "no error info reported");
       pushHistory({ job_id, n, threads, status: final.status });
     }
   } catch (err) {
@@ -692,7 +692,11 @@ $("#bench-form").onsubmit = async (e) => {
       statusSet(statusBox, `<span class="muted">running n=${n}, threads=${t} (${records.length + 1}/${threadList.length})</span>`, true);
       const { job_id } = await submitRandom(n, t, 42);
       const final = await trackJob(job_id, n, t);
-      if (final.status !== "finished") throw new Error(`job for threads=${t} ${final.status}`);
+      if (final.status !== "finished") {
+        const reason = final.error || final.status;
+        pushHistory({ job_id, n, threads: t, status: final.status });
+        throw new Error(`threads=${t}: ${reason}`);
+      }
       records.push({ threads: t, elapsed_ms: final.result.elapsed_ms });
       pushHistory({ job_id, n, threads: t, status: "finished", elapsed_ms: final.result.elapsed_ms });
     }
@@ -751,7 +755,11 @@ $("#sweep-form").onsubmit = async (e) => {
         statusSet(statusBox, `<span class="muted">sweep: n=${n}, threads=${t} (${done}/${total})</span>`, true);
         const { job_id } = await submitRandom(n, t, 42);
         const final = await trackJob(job_id, n, t);
-        if (final.status !== "finished") throw new Error(`n=${n} threads=${t} ${final.status}`);
+        if (final.status !== "finished") {
+          const reason = final.error || final.status;
+          pushHistory({ job_id, n, threads: t, status: final.status });
+          throw new Error(`n=${n} threads=${t}: ${reason}`);
+        }
         pushHistory({ job_id, n, threads: t, status: "finished", elapsed_ms: final.result.elapsed_ms });
       }
     }
