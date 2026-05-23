@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start stack
+        run: docker compose up -d
+
+      - name: Wait for API to come up
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null; then
+              echo "api ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "api did not become healthy"
+          docker compose logs
+          exit 1
+
+      - name: Submit a job via the containerised client
+        run: |
+          set -e
+          docker compose run --rm client --n 128 --threads 2 | tee client.log
+          grep -q "elapsed" client.log
+          grep -q "threads used = 2" client.log
+
+      - name: Show worker logs (for debugging on failure)
+        if: always()
+        run: docker compose logs worker
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
