@@ -13,12 +13,15 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
 
 import numpy as np
+
+DEFAULT_API = os.environ.get("API_URL", "http://localhost:8000")
 
 
 def random_matrix_bytes(n: int, seed: int) -> bytes:
@@ -46,7 +49,7 @@ def http_get(url: str) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="QR service client")
-    parser.add_argument("--api", default="http://localhost:8000", help="API base URL")
+    parser.add_argument("--api", default=DEFAULT_API, help="API base URL (overrides API_URL env)")
     parser.add_argument("--n", type=int, default=512, help="Matrix dimension")
     parser.add_argument("--threads", type=int, default=0, help="OpenMP threads (0 = engine default)")
     parser.add_argument("--seed", type=int, default=42, help="RNG seed for the matrix")

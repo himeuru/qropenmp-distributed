@@ -34,4 +34,5 @@ services:
       context: .
       dockerfile: client/Dockerfile
     profiles: ["tools"]
-    command: ["--api", "http://api:8000", "--n", "512"]
+    environment:
+      API_URL: http://api:8000
