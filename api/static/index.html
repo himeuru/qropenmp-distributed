@@ -29,6 +29,26 @@
   h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
   .subtitle { color: var(--muted); font-size: 13px; }
 
+  .active-bar {
+    background: rgba(210,153,34,0.08);
+    border: 1px solid rgba(210,153,34,0.35);
+    color: var(--yellow);
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .active-bar .grow { flex: 1; }
+  .link-btn {
+    background: none; border: 1px solid currentColor;
+    color: var(--yellow); cursor: pointer;
+    padding: 3px 10px; border-radius: 4px;
+    font: inherit; font-size: 12px;
+  }
+  .link-btn:hover { background: rgba(210,153,34,0.12); }
+
   .tabs {
     display: flex; gap: 4px;
     border-bottom: 1px solid var(--border);
@@ -71,7 +91,7 @@
     cursor: pointer;
   }
   button.primary:hover { opacity: 0.92; }
-  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .status-line { margin-top: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
   .badge {
@@ -118,6 +138,8 @@
     <h1>qropenmp-distributed</h1>
     <p class="subtitle">Distributed QR decomposition over Redis + OpenMP workers.</p>
   </header>
+
+  <div id="active-notice"></div>
 
   <div class="tabs">
     <button class="tab active" data-tab="single">Single job</button>
@@ -179,7 +201,9 @@
 
 <script>
 const HISTORY_KEY = "qropenmp-history-v1";
+const ACTIVE_KEY  = "qropenmp-active-v1";
 
+// --- history (localStorage of the last 10 jobs) ---
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
   catch { return []; }
@@ -214,9 +238,38 @@ function renderHistory() {
     </tr>
   `).join("");
 }
-renderHistory();
-setInterval(renderHistory, 15000);
 
+// --- active job tracking (survives refresh, locks submit buttons) ---
+function getActive() {
+  try { return JSON.parse(localStorage.getItem(ACTIVE_KEY) || "null"); }
+  catch { return null; }
+}
+function setActive(job) {
+  if (job) localStorage.setItem(ACTIVE_KEY, JSON.stringify(job));
+  else localStorage.removeItem(ACTIVE_KEY);
+  renderActive();
+}
+function renderActive(status) {
+  const a = getActive();
+  document.querySelectorAll("form button.primary").forEach(b => b.disabled = !!a);
+  const notice = document.getElementById("active-notice");
+  if (!a) {
+    notice.innerHTML = "";
+    return;
+  }
+  const badge = status ? `<span class="badge ${status.status}">${status.status}</span>` : "";
+  notice.innerHTML = `
+    <div class="active-bar">
+      <span class="grow">A job is in flight: <span class="mono">${a.job_id.slice(0,8)}</span>
+        (n=${a.n}, threads=${a.threads}) ${badge}.
+        Submit is locked until it finishes.</span>
+      <button class="link-btn" id="forget-btn">forget</button>
+    </div>
+  `;
+  document.getElementById("forget-btn").onclick = () => setActive(null);
+}
+
+// --- tab switching ---
 document.querySelectorAll(".tab").forEach(t => {
   t.onclick = () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
@@ -225,6 +278,7 @@ document.querySelectorAll(".tab").forEach(t => {
   };
 });
 
+// --- HTTP helpers ---
 async function submitRandom(n, threads, seed) {
   const r = await fetch("/jobs/random", {
     method: "POST",
@@ -232,18 +286,18 @@ async function submitRandom(n, threads, seed) {
     body: JSON.stringify({n: Number(n), threads: Number(threads), seed: Number(seed)})
   });
   if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`submit failed (${r.status}): ${text}`);
+    let detail;
+    try { detail = (await r.json()).detail; } catch { detail = await r.text(); }
+    throw new Error(`HTTP ${r.status}: ${detail}`);
   }
   return r.json();
 }
-
 async function fetchStatus(jobId) {
   const r = await fetch(`/jobs/${jobId}`);
+  if (r.status === 404) throw new Error(`job ${jobId.slice(0,8)} not found (TTL expired)`);
   if (!r.ok) throw new Error(`status fetch failed (${r.status})`);
   return r.json();
 }
-
 async function waitForJob(jobId, onUpdate) {
   while (true) {
     const s = await fetchStatus(jobId);
@@ -253,67 +307,81 @@ async function waitForJob(jobId, onUpdate) {
   }
 }
 
+// trackJob: wraps waitForJob with active-job persistence so a page refresh
+// can resume the same job instead of accepting a duplicate submission.
+async function trackJob(jobId, n, threads, onUpdate) {
+  setActive({ job_id: jobId, n, threads });
+  try {
+    return await waitForJob(jobId, (s) => {
+      renderActive(s);
+      if (onUpdate) onUpdate(s);
+    });
+  } finally {
+    setActive(null);
+  }
+}
+
+// --- result renderers ---
+function renderSingleResult(r) {
+  return `
+    <div class="result-block">
+      <div class="lead">Decomposed <b>${r.n}&times;${r.n}</b> in <b>${r.elapsed_ms.toFixed(2)} ms</b> using <b>${r.threads_used}</b> thread(s).</div>
+      <div class="mono muted">diag(R)[:5]&nbsp;&nbsp;${r.diag_r_head.slice(0,5).map(x => x.toFixed(3)).join(", ")}</div>
+      <div class="mono muted">diag(R)[-5:] ${r.diag_r_tail.slice(-5).map(x => x.toFixed(3)).join(", ")}</div>
+    </div>
+  `;
+}
+
+// --- single submit ---
 document.getElementById("single-form").onsubmit = async (e) => {
   e.preventDefault();
-  const btn = e.target.querySelector("button");
-  btn.disabled = true;
+  if (getActive()) return;
   const fd = new FormData(e.target);
-  const n = fd.get("n"), threads = fd.get("threads"), seed = fd.get("seed");
+  const n = Number(fd.get("n")), threads = Number(fd.get("threads")), seed = Number(fd.get("seed"));
   const statusBox = document.getElementById("single-status");
   const resultBox = document.getElementById("single-result");
   resultBox.innerHTML = "";
   statusBox.innerHTML = `<div class="status-line mono muted">submitting...</div>`;
   try {
     const { job_id } = await submitRandom(n, threads, seed);
-    const final = await waitForJob(job_id, (s) => {
+    const final = await trackJob(job_id, n, threads, (s) => {
       statusBox.innerHTML = `<div class="status-line mono">job ${job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span></div>`;
     });
     if (final.status === "failed") {
       resultBox.innerHTML = `<pre class="mono result-block" style="color:var(--red)">${final.error || "failed"}</pre>`;
       pushHistory({ job_id, n, threads, status: "failed" });
-      return;
+    } else {
+      resultBox.innerHTML = renderSingleResult(final.result);
+      pushHistory({ job_id, n, threads, status: "finished", elapsed_ms: final.result.elapsed_ms });
     }
-    const r = final.result;
-    resultBox.innerHTML = `
-      <div class="result-block">
-        <div class="lead">Decomposed <b>${r.n}&times;${r.n}</b> in <b>${r.elapsed_ms.toFixed(2)} ms</b> using <b>${r.threads_used}</b> thread(s).</div>
-        <div class="mono muted">diag(R)[:5]&nbsp;&nbsp;${r.diag_r_head.slice(0,5).map(x => x.toFixed(3)).join(", ")}</div>
-        <div class="mono muted">diag(R)[-5:] ${r.diag_r_tail.slice(-5).map(x => x.toFixed(3)).join(", ")}</div>
-      </div>
-    `;
-    pushHistory({ job_id, n, threads, status: "finished", elapsed_ms: r.elapsed_ms });
   } catch (err) {
     statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">${err.message}</div>`;
-  } finally {
-    btn.disabled = false;
   }
 };
 
+// --- benchmark submit ---
 document.getElementById("bench-form").onsubmit = async (e) => {
   e.preventDefault();
-  const btn = e.target.querySelector("button");
-  btn.disabled = true;
+  if (getActive()) return;
   const fd = new FormData(e.target);
   const n = Number(fd.get("n"));
   const threadList = String(fd.get("threads")).split(",")
     .map(s => Number(s.trim()))
     .filter(t => Number.isFinite(t) && t > 0);
-  if (threadList.length < 2) {
-    document.getElementById("bench-status").innerHTML =
-      `<div class="status-line mono" style="color:var(--red)">need at least 2 thread counts</div>`;
-    btn.disabled = false;
-    return;
-  }
   const statusBox = document.getElementById("bench-status");
   const resultBox = document.getElementById("bench-result");
   resultBox.innerHTML = "";
+  if (threadList.length < 2) {
+    statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">need at least 2 thread counts</div>`;
+    return;
+  }
 
   const records = [];
   try {
     for (const t of threadList) {
       statusBox.innerHTML = `<div class="status-line mono muted">running n=${n}, threads=${t} (${records.length+1}/${threadList.length})</div>`;
       const { job_id } = await submitRandom(n, t, 42);
-      const final = await waitForJob(job_id, () => {});
+      const final = await trackJob(job_id, n, t);
       if (final.status === "failed") throw new Error(`job for threads=${t} failed`);
       records.push({ threads: t, elapsed_ms: final.result.elapsed_ms });
       pushHistory({ job_id, n, threads: t, status: "finished", elapsed_ms: final.result.elapsed_ms });
@@ -322,8 +390,6 @@ document.getElementById("bench-form").onsubmit = async (e) => {
     renderBenchmark(n, records);
   } catch (err) {
     statusBox.innerHTML = `<div class="status-line mono" style="color:var(--red)">${err.message}</div>`;
-  } finally {
-    btn.disabled = false;
   }
 };
 
@@ -333,7 +399,6 @@ function renderBenchmark(n, records) {
     const speedup = baseline / r.elapsed_ms;
     return { ...r, speedup, eff: (speedup / r.threads) * 100 };
   });
-
   const tableHtml = `
     <table style="margin-top:16px">
       <thead><tr><th>Threads</th><th>Time</th><th>Speedup</th><th>Efficiency</th></tr></thead>
@@ -349,7 +414,6 @@ function renderBenchmark(n, records) {
       </tbody>
     </table>
   `;
-
   document.getElementById("bench-result").innerHTML =
     tableHtml + `<div class="chart-wrap">${buildChart(n, enriched)}</div>`;
 }
@@ -378,7 +442,6 @@ function buildChart(n, records) {
       <text class="chart-label" x="${padL - 8}" y="${yScale(v) + 4}" text-anchor="end">${v.toFixed(0)}&times;</text>
     `);
   }
-
   const bars = records.map((r, i) => {
     const cx = padL + slot * i + slot / 2;
     const x = cx - barWidth / 2;
@@ -390,7 +453,6 @@ function buildChart(n, records) {
       <text class="chart-label" x="${cx}" y="${padT + innerH + 18}" text-anchor="middle">T=${r.threads}</text>
     `;
   }).join("");
-
   const amdahlPts = records.map((r, i) => {
     const cx = padL + slot * i + slot / 2;
     return `${cx},${yScale(amdahl(r.threads))}`;
@@ -410,6 +472,33 @@ function buildChart(n, records) {
     </svg>
   `;
 }
+
+// --- on page load: render history, resume any in-flight job ---
+renderHistory();
+setInterval(renderHistory, 15000);
+
+(async function resumeOnLoad() {
+  const a = getActive();
+  renderActive();
+  if (!a) return;
+  const statusBox = document.getElementById("single-status");
+  const resultBox = document.getElementById("single-result");
+  statusBox.innerHTML = `<div class="status-line mono muted">resuming job ${a.job_id.slice(0,8)}...</div>`;
+  try {
+    const final = await trackJob(a.job_id, a.n, a.threads, (s) => {
+      statusBox.innerHTML = `<div class="status-line mono">job ${a.job_id.slice(0,8)} <span class="badge ${s.status}">${s.status}</span></div>`;
+    });
+    if (final.status === "finished") {
+      resultBox.innerHTML = renderSingleResult(final.result);
+      pushHistory({ job_id: a.job_id, n: a.n, threads: a.threads, status: "finished", elapsed_ms: final.result.elapsed_ms });
+    } else {
+      resultBox.innerHTML = `<pre class="mono result-block" style="color:var(--red)">${final.error || "failed"}</pre>`;
+    }
+  } catch (err) {
+    statusBox.innerHTML = `<div class="status-line mono muted">${err.message} — cleared tracking</div>`;
+    setActive(null);
+  }
+})();
 </script>
 </body>
 </html>

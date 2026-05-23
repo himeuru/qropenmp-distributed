@@ -21,14 +21,28 @@ from redis import Redis
 from rq import Queue
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
+from rq.registry import StartedJobRegistry
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 QUEUE_NAME = "qr"
 JOB_TIMEOUT = "10m"
 MAX_N = 8192
+MAX_PENDING = int(os.environ.get("MAX_PENDING_JOBS", "4"))
 
 redis_conn = Redis.from_url(REDIS_URL)
 queue = Queue(QUEUE_NAME, connection=redis_conn)
+started_registry = StartedJobRegistry(QUEUE_NAME, connection=redis_conn)
+
+
+def _check_capacity() -> None:
+    """Bound the work the queue will accept so a flood of heavy matrices
+    can't pile up and starve the host of CPU."""
+    in_flight = queue.count + started_registry.count
+    if in_flight >= MAX_PENDING:
+        raise HTTPException(
+            429,
+            f"too many jobs in flight ({in_flight}/{MAX_PENDING}); wait for some to finish",
+        )
 
 app = FastAPI(
     title="QR Compute Service",
@@ -75,6 +89,7 @@ def health() -> dict[str, str]:
 
 @app.post("/jobs", response_model=JobSubmitted, status_code=202)
 def submit_job(req: JobRequest) -> JobSubmitted:
+    _check_capacity()
     try:
         matrix_bytes = base64.b64decode(req.matrix_b64, validate=True)
     except Exception as exc:
@@ -105,6 +120,7 @@ def submit_random_job(req: RandomJobRequest) -> JobSubmitted:
     Avoids shipping megabytes of base64 over the wire for the common case
     where the caller just wants `n`-sized random benchmark data.
     """
+    _check_capacity()
     job = queue.enqueue(
         "worker.decompose_random",
         req.n,
