@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import base64
 import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from redis import Redis
 from rq import Queue
@@ -38,6 +41,12 @@ class JobRequest(BaseModel):
     n: int = Field(..., gt=0, le=MAX_N, description="Matrix dimension (n x n)")
     threads: int = Field(0, ge=0, le=128, description="OpenMP threads, 0 = engine default")
     matrix_b64: str = Field(..., description="Base64-encoded row-major matrix, n*n little-endian float64")
+
+
+class RandomJobRequest(BaseModel):
+    n: int = Field(..., gt=0, le=MAX_N, description="Matrix dimension (n x n)")
+    threads: int = Field(0, ge=0, le=128, description="OpenMP threads, 0 = engine default")
+    seed: int = Field(42, description="RNG seed for the generated matrix")
 
 
 class JobSubmitted(BaseModel):
@@ -89,6 +98,24 @@ def submit_job(req: JobRequest) -> JobSubmitted:
     return JobSubmitted(job_id=job.id, status=job.get_status())
 
 
+@app.post("/jobs/random", response_model=JobSubmitted, status_code=202)
+def submit_random_job(req: RandomJobRequest) -> JobSubmitted:
+    """Enqueue a job where the worker generates the matrix itself.
+
+    Avoids shipping megabytes of base64 over the wire for the common case
+    where the caller just wants `n`-sized random benchmark data.
+    """
+    job = queue.enqueue(
+        "worker.decompose_random",
+        req.n,
+        req.threads,
+        req.seed,
+        job_timeout=JOB_TIMEOUT,
+        result_ttl=3600,
+    )
+    return JobSubmitted(job_id=job.id, status=job.get_status())
+
+
 @app.get("/jobs/{job_id}", response_model=JobStatus)
 def job_status(job_id: str) -> JobStatus:
     try:
@@ -109,3 +136,14 @@ def job_status(job_id: str) -> JobStatus:
 
 def _isoformat(value) -> str | None:
     return value.isoformat() if value else None
+
+
+# Web UI: serve the static page at /ui/ and redirect bare / to it. Keep the
+# JSON API at the top of the router so /docs and /openapi.json still resolve.
+_STATIC_DIR = Path(__file__).parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/ui", StaticFiles(directory=_STATIC_DIR, html=True), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    def _root_redirect():
+        return RedirectResponse(url="/ui/")

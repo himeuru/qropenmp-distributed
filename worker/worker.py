@@ -12,6 +12,8 @@ import os
 import struct
 import subprocess
 
+import numpy as np
+
 ENGINE_BIN = os.environ.get("ENGINE_BIN", "/usr/local/bin/qr-engine")
 
 # Header layout matches main.cpp:
@@ -53,3 +55,15 @@ def decompose(matrix_bytes: bytes, n: int, threads: int) -> dict:
         "diag_r_tail": diag_r[-8:],
         "diag_r_count": len(diag_r),
     }
+
+
+def decompose_random(n: int, threads: int, seed: int = 42) -> dict:
+    """Generate a random n x n matrix on the worker, then decompose it.
+
+    Keeps large payloads off the network and the queue — only n/threads/seed
+    travel from the client, and the matrix is materialised right next to the
+    engine. Useful for the web UI's "submit" button and benchmark mode.
+    """
+    rng = np.random.default_rng(seed)
+    matrix = rng.uniform(-10.0, 10.0, size=(n, n)).astype(np.float64, copy=False)
+    return decompose(matrix.tobytes(), n, threads)
