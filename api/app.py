@@ -88,6 +88,36 @@ def health() -> dict[str, str]:
     return {"status": "ok", "queue": QUEUE_NAME, "pending": str(queue.count)}
 
 
+def _summarise(job_id: str) -> dict | None:
+    try:
+        job = Job.fetch(job_id, connection=redis_conn)
+    except NoSuchJobError:
+        return None
+    args = job.args or ()
+    return {
+        "id": job_id,
+        "status": job.get_status(),
+        "n": args[0] if len(args) > 0 else None,
+        "threads": args[1] if len(args) > 1 else None,
+        "enqueued_at": _isoformat(job.enqueued_at),
+        "started_at": _isoformat(job.started_at),
+    }
+
+
+@app.get("/queue")
+def queue_state() -> dict:
+    """Snapshot of what the workers are currently doing. The UI polls this
+    every couple of seconds to render a live view."""
+    running = [j for j in (_summarise(i) for i in started_registry.get_job_ids()) if j]
+    pending = [j for j in (_summarise(i) for i in queue.job_ids) if j]
+    return {
+        "cap": MAX_PENDING,
+        "in_flight": len(running) + len(pending),
+        "running": running,
+        "queued": pending,
+    }
+
+
 @app.post("/jobs", response_model=JobSubmitted, status_code=202)
 def submit_job(req: JobRequest) -> JobSubmitted:
     _check_capacity()

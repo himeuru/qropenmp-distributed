@@ -15,6 +15,8 @@
     --green: #3fb950;
     --yellow: #d29922;
     --red: #f85149;
+    --purple: #bc8cff;
+    --orange: #ed7d31;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -50,6 +52,34 @@
   .cancel-btn:hover { background: rgba(210,153,34,0.12); }
   .cancel-btn:disabled { opacity: 0.5; cursor: wait; }
 
+  /* live queue panel (under the active banner) */
+  .queue-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .queue-panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .queue-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 0;
+    font-size: 12px;
+  }
+  .queue-row + .queue-row { border-top: 1px solid rgba(255,255,255,0.04); }
+  .queue-role {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    width: 56px; flex-shrink: 0; font-weight: 600;
+  }
+  .queue-role.running { color: var(--yellow); }
+  .queue-role.queued  { color: var(--muted); }
+
   .tabs {
     display: flex; gap: 4px;
     border-bottom: 1px solid var(--border);
@@ -77,6 +107,7 @@
   }
   .panel-head h2 { font-size: 14px; font-weight: 600; }
   .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+  .panel h3 { font-size: 13px; font-weight: 600; margin: 18px 0 6px; color: var(--muted); }
 
   form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
   label {
@@ -128,15 +159,15 @@
   .result-block .lead { font-size: 14px; }
   .result-block b { color: var(--accent); font-weight: 600; }
 
-  .chart-wrap { margin-top: 16px; }
-  .chart { width: 100%; height: 300px; }
+  .chart-wrap { margin-top: 16px; overflow-x: auto; }
+  .chart { display: block; width: 100%; min-width: 480px; }
   .chart-bar { fill: var(--accent); }
   .chart-axis { stroke: var(--border); stroke-width: 1; }
   .chart-label { fill: var(--muted); font-size: 11px; font-family: "JetBrains Mono", monospace; }
   .chart-title { fill: var(--text); font-size: 13px; font-weight: 600; }
   .chart-legend { fill: var(--muted); font-size: 11px; }
 
-  /* Spinner — kept as a persistent DOM node, animation never restarts */
+  /* Spinner — DOM node lives across polls so the rotation doesn't reset */
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     display: inline-block;
@@ -149,7 +180,6 @@
   }
   .spinner[hidden] { display: none; }
 
-  /* Friendly error card */
   .error-card {
     background: rgba(248,81,73,0.06);
     border: 1px solid rgba(248,81,73,0.35);
@@ -169,7 +199,6 @@
   .error-card .title { font-weight: 600; margin-bottom: 2px; }
   .error-card .hint { color: var(--muted); font-size: 12px; }
 
-  /* History row interaction */
   #history tbody tr.history-row { cursor: pointer; }
   #history tbody tr.history-row:hover td { background: rgba(255,255,255,0.02); }
   #history tbody tr.history-row.expanded td { background: rgba(88,166,255,0.05); }
@@ -198,6 +227,10 @@
   .icon-btn:hover { color: var(--red); border-color: rgba(248,81,73,0.35); background: rgba(248,81,73,0.06); }
   .icon-btn.subtle { padding: 2px 6px; font-size: 11px; }
 
+  /* heatmap cells */
+  .heat-cell text { fill: var(--bg); font-size: 11px; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+  .heat-cell text.light { fill: #fff; }
+
   .footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
   .footer a { color: var(--accent); text-decoration: none; }
   .footer a:hover { text-decoration: underline; }
@@ -211,10 +244,12 @@
   </header>
 
   <div id="active-notice"></div>
+  <div id="queue-panel"></div>
 
   <div class="tabs">
     <button class="tab active" data-tab="single">Single job</button>
     <button class="tab" data-tab="bench">Benchmark</button>
+    <button class="tab" data-tab="reports">Reports</button>
   </div>
 
   <div id="tab-single">
@@ -254,6 +289,31 @@
     </div>
   </div>
 
+  <div id="tab-reports" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Reports</h2>
+        <button class="icon-btn" id="refresh-reports" style="color:var(--muted); border-color:var(--border)">Refresh</button>
+      </div>
+      <p class="muted" style="margin-bottom:14px; font-size:12px">
+        Aggregated from your Recent jobs. To fill every chart you need at least one <code>threads=1</code> run
+        per matrix size — that becomes the baseline for speedup and efficiency.
+      </p>
+      <form id="sweep-form" style="margin-bottom:6px">
+        <label>Sizes
+          <input type="text" name="sizes" value="256,512,1024" placeholder="256,512,1024">
+        </label>
+        <label>Threads
+          <input type="text" name="threads" value="1,2,4,8" placeholder="1,2,4,8">
+        </label>
+        <button type="submit" class="primary">Run sweep</button>
+      </form>
+      <div id="sweep-status"></div>
+    </div>
+
+    <div id="reports-content"></div>
+  </div>
+
   <div class="panel">
     <div class="panel-head">
       <h2>Recent jobs (last 10)</h2>
@@ -274,10 +334,12 @@
 </div>
 
 <script>
-const HISTORY_KEY = "qropenmp-history-v1";
+const HISTORY_KEY = "qropenmp-history-v2";
 const ACTIVE_KEY  = "qropenmp-active-v1";
 const BANNER_DELAY_MS = 5000;
 const AMDAHL_P = 0.82;
+const SIZE_COLOURS = ["#1F3864", "#4472C4", "#70AD47", "#ED7D31", "#7030A0", "#C00000", "#bc8cff"];
+const SIZE_MARKERS = ["circle", "rect", "triangle", "diamond", "cross", "star", "plus"];
 
 // --- tiny helpers ---
 function escapeHtml(s) {
@@ -291,16 +353,12 @@ function timeAgo(ts) {
   return Math.round(s/3600) + "h ago";
 }
 
-// --- status box: keeps the spinner DOM node alive between polls so its
-// rotation animation isn't restarted every 400ms. ---
+// --- status box: persistent spinner + replaceable text ---
 function statusEnsure(box) {
   if (!box.querySelector(".status-line")) {
     box.innerHTML = '<div class="status-line mono"><span class="spinner" hidden></span><span class="status-text"></span></div>';
   }
-  return {
-    spinner: box.querySelector(".spinner"),
-    text: box.querySelector(".status-text"),
-  };
+  return { spinner: box.querySelector(".spinner"), text: box.querySelector(".status-text") };
 }
 function statusSet(box, html, withSpinner = false) {
   const { spinner, text } = statusEnsure(box);
@@ -308,7 +366,6 @@ function statusSet(box, html, withSpinner = false) {
   text.innerHTML = html;
 }
 function statusClear(box) { box.innerHTML = ""; }
-
 function showError(box, title, hint) {
   box.innerHTML = `
     <div class="error-card">
@@ -321,41 +378,43 @@ function showError(box, title, hint) {
   `;
 }
 
-// --- history (localStorage of the last 10 jobs) ---
+// --- history ---
 let expandedJobId = null;
-
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
   catch { return []; }
 }
 function saveHistory(items) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 10)));
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 50)));
 }
 function pushHistory(item) {
   const items = loadHistory();
   items.unshift({ ...item, ts: Date.now() });
   saveHistory(items);
   renderHistory();
+  if (!$("#tab-reports").hidden) renderReports();
 }
 function deleteHistory(jobId) {
   if (expandedJobId === jobId) expandedJobId = null;
   saveHistory(loadHistory().filter(j => j.job_id !== jobId));
   renderHistory();
+  if (!$("#tab-reports").hidden) renderReports();
 }
 function clearHistory() {
   expandedJobId = null;
   localStorage.removeItem(HISTORY_KEY);
   renderHistory();
+  if (!$("#tab-reports").hidden) renderReports();
 }
 
 function renderHistory() {
-  const items = loadHistory();
+  const items = loadHistory().slice(0, 10);
   const tbody = $("#history tbody");
   if (!items.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="muted mono">no jobs yet</td></tr>';
     return;
   }
-  tbody.innerHTML = items.map(j => renderRow(j, items)).join("");
+  tbody.innerHTML = items.map(j => renderRow(j, loadHistory())).join("");
   tbody.querySelectorAll(".history-row").forEach(row => {
     row.onclick = (e) => {
       if (e.target.closest(".delete-row")) return;
@@ -365,13 +424,9 @@ function renderHistory() {
     };
   });
   tbody.querySelectorAll(".delete-row").forEach(btn => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      deleteHistory(btn.dataset.job);
-    };
+    btn.onclick = (e) => { e.stopPropagation(); deleteHistory(btn.dataset.job); };
   });
 }
-
 function renderRow(j, allItems) {
   const expanded = expandedJobId === j.job_id;
   const elapsed = j.elapsed_ms != null ? j.elapsed_ms.toFixed(2) + " ms" : "—";
@@ -389,9 +444,7 @@ function renderRow(j, allItems) {
   if (!expanded) return main;
   return main + renderDetail(j, allItems);
 }
-
 function renderDetail(j, allItems) {
-  // Try to find a same-n single-thread run in the history to compute speedup.
   const baseline = allItems.find(x => x.n === j.n && x.threads === 1 && x.elapsed_ms != null && x.status === "finished");
   let speedupRow = "", effRow = "", noteRow = "";
   if (j.status === "finished" && baseline && j.threads > 1) {
@@ -427,15 +480,11 @@ function renderDetail(j, allItems) {
     </tr>
   `;
 }
+$("#clear-history").onclick = () => { if (confirm("Clear all recent jobs?")) clearHistory(); };
 
-$("#clear-history").onclick = () => {
-  if (confirm("Clear all recent jobs?")) clearHistory();
-};
-
-// --- active job tracking (persists across refresh, locks submit) ---
+// --- active job tracking + Cancel button ---
 let bannerTimer = null;
 let bannerShown = false;
-
 function getActive() {
   try { return JSON.parse(localStorage.getItem(ACTIVE_KEY) || "null"); }
   catch { return null; }
@@ -452,11 +501,7 @@ function setActive(job, opts = {}) {
       bannerShown = true;
       renderActive();
     } else {
-      bannerTimer = setTimeout(() => {
-        bannerTimer = null;
-        bannerShown = true;
-        renderActive();
-      }, delay);
+      bannerTimer = setTimeout(() => { bannerTimer = null; bannerShown = true; renderActive(); }, delay);
     }
   } else {
     localStorage.removeItem(ACTIVE_KEY);
@@ -483,19 +528,12 @@ function renderActive(status) {
   `;
   $("#cancel-btn").onclick = onCancelClick;
 }
-
 async function onCancelClick() {
   const a = getActive();
   if (!a) return;
   const btn = $("#cancel-btn");
   if (btn) { btn.disabled = true; btn.textContent = "canceling..."; }
-  try {
-    await cancelJob(a.job_id);
-  } catch {
-    // best effort — the polling loop will catch the missing job
-  }
-  // The 404 from the next poll will throw and bubble up; we already cleared
-  // active here so the UI is consistent immediately.
+  try { await cancelJob(a.job_id); } catch {}
   setActive(null);
 }
 
@@ -518,36 +556,26 @@ async function cancelJob(jobId) {
   const r = await fetch(`/jobs/${jobId}`, { method: "DELETE" });
   if (!r.ok && r.status !== 404) throw await wrapHttpError(r);
 }
-
+async function fetchQueue() {
+  const r = await fetch("/queue");
+  if (!r.ok) throw await wrapHttpError(r);
+  return r.json();
+}
 async function wrapHttpError(response, extra = {}) {
   let detail = response.statusText;
-  try {
-    const j = await response.json();
-    if (j.detail) detail = j.detail;
-  } catch { /* not json */ }
+  try { const j = await response.json(); if (j.detail) detail = j.detail; } catch {}
   const err = new Error(detail);
   err.status = response.status;
   err.extra = extra;
   return err;
 }
-
-// Friendly error messages
 function describeError(err) {
-  if (err.status === 429) {
-    return { title: "Server is busy", hint: "Too many jobs are running. Wait for one to finish, or hit Cancel on the active job." };
-  }
-  if (err.status === 404 && err.extra && err.extra.jobId) {
-    return { title: "Job was canceled or expired", hint: "The worker already cleaned it up; nothing left to wait for." };
-  }
-  if (err.status >= 500) {
-    return { title: "Server error", hint: "Check the logs: docker compose logs api worker" };
-  }
-  if (err.name === "TypeError" && /Failed to fetch|NetworkError/i.test(err.message)) {
-    return { title: "Cannot reach the server", hint: "Is docker compose up?" };
-  }
+  if (err.status === 429) return { title: "Server is busy", hint: "Too many jobs are running. Wait for one to finish, or hit Cancel on the active job." };
+  if (err.status === 404 && err.extra && err.extra.jobId) return { title: "Job was canceled or expired", hint: "The worker already cleaned it up; nothing left to wait for." };
+  if (err.status >= 500) return { title: "Server error", hint: "Check the logs: docker compose logs api worker" };
+  if (err.name === "TypeError" && /Failed to fetch|NetworkError/i.test(err.message)) return { title: "Cannot reach the server", hint: "Is docker compose up?" };
   return { title: err.message || "Unexpected error", hint: null };
 }
-
 async function waitForJob(jobId, onUpdate) {
   while (true) {
     const s = await fetchStatus(jobId);
@@ -556,7 +584,6 @@ async function waitForJob(jobId, onUpdate) {
     await new Promise(res => setTimeout(res, 400));
   }
 }
-
 async function trackJob(jobId, n, threads, onUpdate, opts = {}) {
   setActive({ job_id: jobId, n, threads }, opts);
   try {
@@ -564,12 +591,9 @@ async function trackJob(jobId, n, threads, onUpdate, opts = {}) {
       if (bannerShown) renderActive(s);
       if (onUpdate) onUpdate(s);
     });
-  } finally {
-    setActive(null);
-  }
+  } finally { setActive(null); }
 }
 
-// --- result rendering ---
 function renderSingleResult(r) {
   return `
     <div class="result-block">
@@ -584,8 +608,10 @@ function renderSingleResult(r) {
 document.querySelectorAll(".tab").forEach(t => {
   t.onclick = () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
-    $("#tab-single").hidden = t.dataset.tab !== "single";
-    $("#tab-bench").hidden  = t.dataset.tab !== "bench";
+    $("#tab-single").hidden  = t.dataset.tab !== "single";
+    $("#tab-bench").hidden   = t.dataset.tab !== "bench";
+    $("#tab-reports").hidden = t.dataset.tab !== "reports";
+    if (t.dataset.tab === "reports") renderReports();
   };
 });
 
@@ -627,8 +653,7 @@ $("#bench-form").onsubmit = async (e) => {
   const fd = new FormData(e.target);
   const n = Number(fd.get("n"));
   const threadList = String(fd.get("threads")).split(",")
-    .map(s => Number(s.trim()))
-    .filter(t => Number.isFinite(t) && t > 0);
+    .map(s => Number(s.trim())).filter(t => Number.isFinite(t) && t > 0);
   const statusBox = $("#bench-status");
   const resultBox = $("#bench-result");
   resultBox.innerHTML = "";
@@ -637,7 +662,6 @@ $("#bench-form").onsubmit = async (e) => {
     return;
   }
   statusClear(statusBox);
-
   const records = [];
   try {
     for (const t of threadList) {
@@ -678,31 +702,365 @@ function renderBenchmark(n, records) {
       </tbody>
     </table>
   `;
-  $("#bench-result").innerHTML = tableHtml + `<div class="chart-wrap">${buildChart(n, enriched)}</div>`;
+  $("#bench-result").innerHTML = tableHtml + `<div class="chart-wrap">${chartSpeedupBar(n, enriched)}</div>`;
 }
 
-function buildChart(n, records) {
-  const W = 720, H = 300, padL = 50, padR = 20, padT = 36, padB = 36;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const amdahl = t => 1 / ((1 - AMDAHL_P) + AMDAHL_P / t);
+// --- sweep (Reports tab) ---
+$("#sweep-form").onsubmit = async (e) => {
+  e.preventDefault();
+  if (getActive()) return;
+  const fd = new FormData(e.target);
+  const sizes = String(fd.get("sizes")).split(",").map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n > 1);
+  const threads = String(fd.get("threads")).split(",").map(s => Number(s.trim())).filter(t => Number.isFinite(t) && t > 0);
+  const statusBox = $("#sweep-status");
+  if (!sizes.length || !threads.length) {
+    showError(statusBox, "Both fields are required", "e.g. sizes 256,512,1024 and threads 1,2,4,8");
+    return;
+  }
+  statusClear(statusBox);
+  const total = sizes.length * threads.length;
+  let done = 0;
+  try {
+    for (const n of sizes) {
+      for (const t of threads) {
+        done += 1;
+        statusSet(statusBox, `<span class="muted">sweep: n=${n}, threads=${t} (${done}/${total})</span>`, true);
+        const { job_id } = await submitRandom(n, t, 42);
+        const final = await trackJob(job_id, n, t);
+        if (final.status !== "finished") throw new Error(`n=${n} threads=${t} ${final.status}`);
+        pushHistory({ job_id, n, threads: t, status: "finished", elapsed_ms: final.result.elapsed_ms });
+      }
+    }
+    statusSet(statusBox, `<span class="muted">done — ${total} runs, reports updated</span>`, false);
+    renderReports();
+  } catch (err) {
+    statusClear(statusBox);
+    const { title, hint } = describeError(err);
+    showError(statusBox, title, hint);
+  }
+};
 
+$("#refresh-reports").onclick = renderReports;
+
+// --- Reports: aggregate history, render 4 charts ---
+function aggregateForReports() {
+  const items = loadHistory().filter(j => j.status === "finished" && j.elapsed_ms != null);
+  const byN = {};
+  for (const j of items) {
+    if (!byN[j.n]) byN[j.n] = {};
+    if (!byN[j.n][j.threads] || j.ts > byN[j.n][j.threads].ts) {
+      byN[j.n][j.threads] = j;
+    }
+  }
+  const sizes = Object.keys(byN).map(Number).sort((a, b) => a - b);
+  return sizes.map(n => {
+    const tMap = byN[n];
+    const ts = Object.keys(tMap).map(Number).sort((a, b) => a - b);
+    const baseline = tMap[1] ? tMap[1].elapsed_ms : null;
+    const runs = ts.map(t => ({
+      threads: t,
+      elapsed_ms: tMap[t].elapsed_ms,
+      speedup: baseline ? baseline / tMap[t].elapsed_ms : null,
+      eff: baseline ? (baseline / tMap[t].elapsed_ms / t) * 100 : null,
+    }));
+    return { n, runs };
+  });
+}
+
+function renderReports() {
+  const data = aggregateForReports();
+  const container = $("#reports-content");
+  if (!data.length) {
+    container.innerHTML = `<div class="panel"><p class="muted">No finished jobs in history yet. Submit some, or hit "Run sweep" above.</p></div>`;
+    return;
+  }
+  const sizesWithBaseline = data.filter(d => d.runs.some(r => r.threads === 1));
+  const note = (sizesWithBaseline.length < data.length)
+    ? `<p class="muted" style="margin:8px 0 12px; font-size:12px">Speedup-based charts need a <code>threads=1</code> run per size. Missing for: ${data.filter(d => !d.runs.some(r => r.threads === 1)).map(d => d.n + "×" + d.n).join(", ")}.</p>`
+    : "";
+
+  container.innerHTML = `
+    <div class="panel">
+      <h2>Amdahl: theory vs measured</h2>
+      ${note}
+      <div class="chart-wrap">${chartAmdahl(data)}</div>
+    </div>
+    <div class="panel">
+      <h2>Speedup by matrix size</h2>
+      <div class="chart-wrap">${chartSpeedupBySize(data)}</div>
+    </div>
+    <div class="panel">
+      <h2>Parallel efficiency</h2>
+      <div class="chart-wrap">${chartEfficiencyHeatmap(data)}</div>
+    </div>
+    <div class="panel">
+      <h2>Execution time</h2>
+      <div class="chart-wrap">${chartTime(data)}</div>
+    </div>
+  `;
+}
+
+// --- chart helpers ---
+function svgMarker(shape, cx, cy, r, fill) {
+  switch (shape) {
+    case "rect": return `<rect x="${cx-r}" y="${cy-r}" width="${2*r}" height="${2*r}" fill="${fill}"/>`;
+    case "triangle": return `<polygon points="${cx},${cy-r} ${cx-r},${cy+r} ${cx+r},${cy+r}" fill="${fill}"/>`;
+    case "diamond": return `<polygon points="${cx},${cy-r} ${cx+r},${cy} ${cx},${cy+r} ${cx-r},${cy}" fill="${fill}"/>`;
+    case "cross": return `<g fill="${fill}"><rect x="${cx-r}" y="${cy-r/3}" width="${2*r}" height="${2*r/3}"/><rect x="${cx-r/3}" y="${cy-r}" width="${2*r/3}" height="${2*r}"/></g>`;
+    case "star":
+    case "plus": return `<g fill="${fill}"><rect x="${cx-r}" y="${cy-1}" width="${2*r}" height="2"/><rect x="${cx-1}" y="${cy-r}" width="2" height="${2*r}"/></g>`;
+    default: return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}"/>`;
+  }
+}
+
+// Chart 1: Amdahl theoretical curves + real points coloured by size.
+function chartAmdahl(data) {
+  const W = 720, H = 320, padL = 50, padR = 90, padT = 30, padB = 36;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const pVals = [0.50, 0.70, AMDAHL_P, 0.90, 0.95];
+  const colours = ["#5a3b87", "#8a3a82", "#bc417a", "#ed4d6a", "#ff7f50"];
+  const xs = [1, 2, 4, 8, 16, 32, 64];
+  const yMax = 14;
+  const xMin = Math.log2(1), xMax = Math.log2(64);
+  const xScale = t => padL + (Math.log2(t) - xMin) / (xMax - xMin) * innerW;
+  const yScale = v => padT + innerH - Math.min(v, yMax) / yMax * innerH;
+
+  // axes / grid
+  let grid = "";
+  for (let v = 0; v <= yMax; v += 2) {
+    grid += `<line class="chart-axis" x1="${padL}" x2="${W-padR}" y1="${yScale(v)}" y2="${yScale(v)}" opacity="0.5"/>`;
+    grid += `<text class="chart-label" x="${padL-8}" y="${yScale(v)+4}" text-anchor="end">${v}×</text>`;
+  }
+  for (const x of xs) {
+    grid += `<text class="chart-label" x="${xScale(x)}" y="${H-padB+16}" text-anchor="middle">${x}</text>`;
+  }
+
+  // p-curves
+  let curves = "";
+  pVals.forEach((p, i) => {
+    const pts = [];
+    for (let t = 1; t <= 64; t += 0.5) {
+      const s = 1 / ((1 - p) + p / t);
+      pts.push(`${xScale(t)},${yScale(s)}`);
+    }
+    const isOurs = p === AMDAHL_P;
+    curves += `<polyline points="${pts.join(" ")}" fill="none" stroke="${colours[i]}" stroke-width="${isOurs ? 2.5 : 1.2}" stroke-dasharray="${isOurs ? "" : "4 4"}" opacity="${isOurs ? 1 : 0.7}"/>`;
+    // asymptote label
+    const sMax = 1 / (1 - p);
+    if (sMax < yMax) {
+      curves += `<text class="chart-legend" x="${W-padR+4}" y="${yScale(sMax)+4}" fill="${colours[i]}">p=${p}</text>`;
+    } else {
+      curves += `<text class="chart-legend" x="${W-padR+4}" y="${padT + 12 + i*12}" fill="${colours[i]}">p=${p}</text>`;
+    }
+  });
+
+  // real points by size
+  let points = "";
+  data.forEach((d, idx) => {
+    const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+    const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+    for (const r of d.runs) {
+      if (r.speedup == null) continue;
+      points += svgMarker(shape, xScale(r.threads), yScale(r.speedup), 5, colour);
+    }
+  });
+
+  // legend for sizes
+  const legend = data.map((d, idx) => {
+    const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+    const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+    const y = padT + idx * 14 + 4;
+    return svgMarker(shape, padL + 14, y, 5, colour) + `<text class="chart-legend" x="${padL+26}" y="${y+4}">${d.n}×${d.n}</text>`;
+  }).join("");
+
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <text class="chart-title" x="${padL}" y="20">Speedup vs threads</text>
+    <text class="chart-legend" x="${W-padR}" y="20" text-anchor="end">x: threads (log) · y: speedup</text>
+    ${grid}${curves}${points}
+    <g style="background:rgba(0,0,0,0.4)">${legend}</g>
+  </svg>`;
+}
+
+// Chart 2: per-size speedup vs theory.
+function chartSpeedupBySize(data) {
+  const W = 720, H = 320, padL = 50, padR = 20, padT = 30, padB = 36;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const allThreads = Array.from(new Set(data.flatMap(d => d.runs.map(r => r.threads)))).sort((a, b) => a - b);
+  if (!allThreads.length) return '<p class="muted">no data</p>';
+  const xMin = Math.log2(allThreads[0]), xMax = Math.log2(allThreads[allThreads.length-1]);
   const yMax = Math.max(
-    ...records.map(r => r.speedup),
-    ...records.map(r => amdahl(r.threads)),
-    1
-  ) * 1.15;
-  const barWidth = innerW / records.length * 0.6;
-  const slot = innerW / records.length;
+    ...data.flatMap(d => d.runs.map(r => r.speedup || 0)),
+    ...allThreads,
+    4
+  ) * 1.1;
+  const xScale = t => padL + (xMax === xMin ? 0.5 : (Math.log2(t) - xMin) / (xMax - xMin)) * innerW;
   const yScale = v => padT + innerH - (v / yMax) * innerH;
 
-  const yTicks = [];
-  const tickStep = yMax > 6 ? 2 : 1;
-  for (let v = 0; v <= yMax; v += tickStep) {
-    yTicks.push(`
-      <line class="chart-axis" x1="${padL}" x2="${W - padR}" y1="${yScale(v)}" y2="${yScale(v)}" opacity="0.5"/>
-      <text class="chart-label" x="${padL - 8}" y="${yScale(v) + 4}" text-anchor="end">${v.toFixed(0)}&times;</text>
-    `);
+  let grid = "";
+  const step = yMax > 10 ? 2 : 1;
+  for (let v = 0; v <= yMax; v += step) {
+    grid += `<line class="chart-axis" x1="${padL}" x2="${W-padR}" y1="${yScale(v)}" y2="${yScale(v)}" opacity="0.5"/>`;
+    grid += `<text class="chart-label" x="${padL-8}" y="${yScale(v)+4}" text-anchor="end">${v}×</text>`;
+  }
+  for (const x of allThreads) {
+    grid += `<text class="chart-label" x="${xScale(x)}" y="${H-padB+16}" text-anchor="middle">${x}</text>`;
+  }
+  // ideal S=N
+  const idealPts = allThreads.map(t => `${xScale(t)},${yScale(t)}`).join(" ");
+  grid += `<polyline points="${idealPts}" fill="none" stroke="rgba(112,173,71,0.5)" stroke-width="1" stroke-dasharray="2 3"/>`;
+  // amdahl curve (single, with our p)
+  const amdahlPts = allThreads.map(t => `${xScale(t)},${yScale(1/((1-AMDAHL_P)+AMDAHL_P/t))}`).join(" ");
+  grid += `<polyline points="${amdahlPts}" fill="none" stroke="rgba(201,209,217,0.5)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+
+  // one polyline per size
+  let lines = "";
+  data.forEach((d, idx) => {
+    const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+    const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+    const valid = d.runs.filter(r => r.speedup != null);
+    if (valid.length < 2) return;
+    const pts = valid.map(r => `${xScale(r.threads)},${yScale(r.speedup)}`).join(" ");
+    lines += `<polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="2"/>`;
+    lines += valid.map(r => svgMarker(shape, xScale(r.threads), yScale(r.speedup), 4, colour)).join("");
+  });
+
+  const legend = data
+    .filter(d => d.runs.some(r => r.speedup != null))
+    .map((d, idx) => {
+      const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+      const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+      const y = padT + 12 + idx * 14;
+      return svgMarker(shape, padL + 30, y - 4, 5, colour) + `<text class="chart-legend" x="${padL+42}" y="${y}">${d.n}×${d.n}</text>`;
+    }).join("");
+
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <text class="chart-title" x="${padL}" y="20">Real speedup vs Amdahl (p=${AMDAHL_P})</text>
+    <text class="chart-legend" x="${W-padR}" y="20" text-anchor="end">dashed: ideal &amp; Amdahl</text>
+    ${grid}${lines}${legend}
+  </svg>`;
+}
+
+// Chart 3: efficiency heatmap.
+function chartEfficiencyHeatmap(data) {
+  const allThreads = Array.from(new Set(data.flatMap(d => d.runs.map(r => r.threads).filter(t => t > 1)))).sort((a, b) => a - b);
+  if (!allThreads.length || !data.length) return '<p class="muted">need at least one threads&gt;1 run with a threads=1 baseline</p>';
+
+  const cellW = 90, cellH = 40, padL = 80, padR = 60, padT = 36, padB = 20;
+  const W = padL + cellW * allThreads.length + padR;
+  const H = padT + cellH * data.length + padB;
+
+  let cells = "";
+  data.forEach((d, ri) => {
+    allThreads.forEach((t, ci) => {
+      const r = d.runs.find(x => x.threads === t);
+      const x = padL + ci * cellW;
+      const y = padT + ri * cellH;
+      let fill = "rgba(255,255,255,0.04)", label = "—";
+      let textCls = "light";
+      if (r && r.eff != null) {
+        const eff = r.eff;
+        const v = Math.min(eff, 110) / 110;
+        // red→yellow→green gradient
+        const r1 = Math.round(248 + (210 - 248) * Math.min(v*2, 1));
+        const g1 = Math.round(81  + (153 - 81)  * Math.min(v*2, 1));
+        const b1 = Math.round(73  + (34  - 73)  * Math.min(v*2, 1));
+        const r2 = Math.round(210 + (63  - 210) * Math.max(v*2-1, 0));
+        const g2 = Math.round(153 + (185 - 153) * Math.max(v*2-1, 0));
+        const b2 = Math.round(34  + (80  - 34)  * Math.max(v*2-1, 0));
+        const finR = v < 0.5 ? r1 : r2;
+        const finG = v < 0.5 ? g1 : g2;
+        const finB = v < 0.5 ? b1 : b2;
+        fill = `rgb(${finR},${finG},${finB})`;
+        label = eff.toFixed(0) + "%";
+        textCls = eff > 55 ? "" : "light";
+      }
+      cells += `
+        <g class="heat-cell">
+          <rect x="${x+1}" y="${y+1}" width="${cellW-2}" height="${cellH-2}" rx="3" fill="${fill}"/>
+          <text class="${textCls}" x="${x + cellW/2}" y="${y + cellH/2 + 4}" text-anchor="middle">${label}</text>
+        </g>`;
+    });
+    // row label
+    cells += `<text class="chart-label" x="${padL-10}" y="${padT + ri * cellH + cellH/2 + 4}" text-anchor="end">${d.n}×${d.n}</text>`;
+  });
+  // col labels
+  allThreads.forEach((t, ci) => {
+    cells += `<text class="chart-label" x="${padL + ci * cellW + cellW/2}" y="${padT - 8}" text-anchor="middle">T=${t}</text>`;
+  });
+
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <text class="chart-title" x="${padL}" y="18">Efficiency E = S / N (%)</text>
+    <text class="chart-legend" x="${W-padR-10}" y="18" text-anchor="end">red = poor, green = great, &gt;100% = superlinear</text>
+    ${cells}
+  </svg>`;
+}
+
+// Chart 4: time vs threads, one line per size, log y.
+function chartTime(data) {
+  const W = 720, H = 320, padL = 60, padR = 20, padT = 30, padB = 36;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const allThreads = Array.from(new Set(data.flatMap(d => d.runs.map(r => r.threads)))).sort((a, b) => a - b);
+  if (!allThreads.length) return '<p class="muted">no data</p>';
+  const allTimes = data.flatMap(d => d.runs.map(r => r.elapsed_ms));
+  const tMin = Math.min(...allTimes);
+  const tMax = Math.max(...allTimes);
+  const yLogMin = Math.log10(Math.max(tMin, 0.1));
+  const yLogMax = Math.log10(tMax) + 0.2;
+  const xMin = Math.log2(allThreads[0]), xMax = Math.log2(allThreads[allThreads.length-1]);
+  const xScale = t => padL + (xMax === xMin ? 0.5 : (Math.log2(t) - xMin) / (xMax - xMin)) * innerW;
+  const yScale = v => padT + innerH - (Math.log10(Math.max(v, 0.1)) - yLogMin) / (yLogMax - yLogMin) * innerH;
+
+  let grid = "";
+  // y ticks at powers of 10
+  for (let p = Math.floor(yLogMin); p <= Math.ceil(yLogMax); p++) {
+    const v = Math.pow(10, p);
+    if (v < tMin/10 || v > tMax*10) continue;
+    grid += `<line class="chart-axis" x1="${padL}" x2="${W-padR}" y1="${yScale(v)}" y2="${yScale(v)}" opacity="0.5"/>`;
+    grid += `<text class="chart-label" x="${padL-8}" y="${yScale(v)+4}" text-anchor="end">${v >= 1000 ? (v/1000)+"s" : v+"ms"}</text>`;
+  }
+  for (const x of allThreads) {
+    grid += `<text class="chart-label" x="${xScale(x)}" y="${H-padB+16}" text-anchor="middle">${x}</text>`;
+  }
+
+  let lines = "";
+  data.forEach((d, idx) => {
+    const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+    const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+    const pts = d.runs.map(r => `${xScale(r.threads)},${yScale(r.elapsed_ms)}`).join(" ");
+    lines += `<polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="2"/>`;
+    lines += d.runs.map(r => svgMarker(shape, xScale(r.threads), yScale(r.elapsed_ms), 4, colour)).join("");
+  });
+
+  const legend = data.map((d, idx) => {
+    const colour = SIZE_COLOURS[idx % SIZE_COLOURS.length];
+    const shape = SIZE_MARKERS[idx % SIZE_MARKERS.length];
+    const y = padT + 12 + idx * 14;
+    return svgMarker(shape, padL + 30, y - 4, 5, colour) + `<text class="chart-legend" x="${padL+42}" y="${y}">${d.n}×${d.n}</text>`;
+  }).join("");
+
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <text class="chart-title" x="${padL}" y="20">Execution time vs threads</text>
+    <text class="chart-legend" x="${W-padR}" y="20" text-anchor="end">y axis: log scale</text>
+    ${grid}${lines}${legend}
+  </svg>`;
+}
+
+// the bar chart used by the Benchmark tab (kept as before)
+function chartSpeedupBar(n, records) {
+  const W = 720, H = 300, padL = 50, padR = 20, padT = 36, padB = 36;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const amdahl = t => 1 / ((1 - AMDAHL_P) + AMDAHL_P / t);
+  const yMax = Math.max(
+    ...records.map(r => r.speedup), ...records.map(r => amdahl(r.threads)), 1
+  ) * 1.15;
+  const slot = innerW / records.length;
+  const barWidth = slot * 0.6;
+  const yScale = v => padT + innerH - (v / yMax) * innerH;
+  let grid = "";
+  const tick = yMax > 6 ? 2 : 1;
+  for (let v = 0; v <= yMax; v += tick) {
+    grid += `<line class="chart-axis" x1="${padL}" x2="${W-padR}" y1="${yScale(v)}" y2="${yScale(v)}" opacity="0.5"/>`;
+    grid += `<text class="chart-label" x="${padL-8}" y="${yScale(v)+4}" text-anchor="end">${v.toFixed(0)}×</text>`;
   }
   const bars = records.map((r, i) => {
     const cx = padL + slot * i + slot / 2;
@@ -711,7 +1069,7 @@ function buildChart(n, records) {
     const h = padT + innerH - y;
     return `
       <rect class="chart-bar" x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="3"/>
-      <text class="chart-label" x="${cx}" y="${y - 6}" text-anchor="middle">${r.speedup.toFixed(2)}&times;</text>
+      <text class="chart-label" x="${cx}" y="${y - 6}" text-anchor="middle">${r.speedup.toFixed(2)}×</text>
       <text class="chart-label" x="${cx}" y="${padT + innerH + 18}" text-anchor="middle">T=${r.threads}</text>
     `;
   }).join("");
@@ -719,23 +1077,59 @@ function buildChart(n, records) {
     const cx = padL + slot * i + slot / 2;
     return `${cx},${yScale(amdahl(r.threads))}`;
   }).join(" ");
-
-  return `
-    <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-      <text class="chart-title" x="${padL}" y="22">Speedup vs threads &mdash; n=${n}</text>
-      <text class="chart-legend" x="${W - padR}" y="22" text-anchor="end">dashed: Amdahl, p=${AMDAHL_P}</text>
-      ${yTicks.join("")}
-      ${bars}
-      <polyline points="${amdahlPts}" fill="none" stroke="rgba(201,209,217,0.5)" stroke-width="1.5" stroke-dasharray="5 4"/>
-      ${records.map((r, i) => {
-        const cx = padL + slot * i + slot / 2;
-        return `<circle cx="${cx}" cy="${yScale(amdahl(r.threads))}" r="3" fill="rgba(201,209,217,0.7)"/>`;
-      }).join("")}
-    </svg>
-  `;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <text class="chart-title" x="${padL}" y="22">Speedup vs threads — n=${n}</text>
+    <text class="chart-legend" x="${W-padR}" y="22" text-anchor="end">dashed: Amdahl, p=${AMDAHL_P}</text>
+    ${grid}${bars}
+    <polyline points="${amdahlPts}" fill="none" stroke="rgba(201,209,217,0.5)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  </svg>`;
 }
 
-// --- on load: render history, optionally resume an in-flight job ---
+// --- queue panel polling ---
+async function pollQueue() {
+  try {
+    const data = await fetchQueue();
+    renderQueuePanel(data);
+  } catch {
+    $("#queue-panel").innerHTML = "";
+  }
+}
+function renderQueuePanel(data) {
+  const panel = $("#queue-panel");
+  const total = (data.running?.length || 0) + (data.queued?.length || 0);
+  if (total === 0) { panel.innerHTML = ""; return; }
+  const rows = [
+    ...data.running.map(j => renderQueueRow(j, "running")),
+    ...data.queued.map(j => renderQueueRow(j, "queued")),
+  ].join("");
+  panel.innerHTML = `
+    <div class="queue-panel">
+      <div class="queue-panel-head">
+        <span>Queue · ${data.in_flight}/${data.cap}</span>
+        <span>updates every 2s</span>
+      </div>
+      ${rows}
+    </div>
+  `;
+  panel.querySelectorAll(".queue-cancel").forEach(btn => {
+    btn.onclick = async () => {
+      try { await cancelJob(btn.dataset.id); pollQueue(); } catch {}
+    };
+  });
+}
+function renderQueueRow(j, role) {
+  return `
+    <div class="queue-row">
+      <span class="queue-role ${role}">${role}</span>
+      <span class="mono grow">${j.id.slice(0,8)}&nbsp;&nbsp;n=${j.n ?? "?"}&nbsp;&nbsp;threads=${j.threads ?? "?"}</span>
+      <button class="icon-btn subtle queue-cancel" data-id="${j.id}" title="Cancel">×</button>
+    </div>
+  `;
+}
+setInterval(() => { if (document.visibilityState === "visible") pollQueue(); }, 2000);
+pollQueue();
+
+// --- on load: history + optional resume ---
 renderHistory();
 setInterval(renderHistory, 15000);
 
